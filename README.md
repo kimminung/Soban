@@ -71,12 +71,47 @@ Apple Vision Pro 실기기에서 녹화한 영상입니다. 썸네일을 누르�
 
 ## 다이어그램
 
-| | |
-|---|---|
-| [아키텍처 레이어](Docs/diagrams/architecture-layers.svg) | [페르소나 캡처 파이프라인](Docs/diagrams/persona-pipeline.svg) |
-| [모임 세션 흐름](Docs/diagrams/session-flow.svg) | [두레반 좌석 배치](Docs/diagrams/table-layout.svg) |
-| [라이브 포즈 루프](Docs/diagrams/live-pose-loop.svg) | [모습 수집 분기 (Vision Pro / iPhone·iPad / Mac)](Docs/diagrams/capture-branches.svg) |
-| [가우시안 스플랫 파이프라인 · 입 신호 우선순위](Docs/diagrams/splat-pipeline.svg) | |
+### 아키텍처 레이어
+
+UI(창·이머시브 공간) → 상태/도메인(`AppModel`·`PersonaStore`·`GatheringSession`·`TableRenderer`) → 엔진(Vision·RealityKit·ARKit·AVFAudio) → 전송(`SessionTransport`) 4계층 구조.
+
+![아키텍처 레이어](Docs/diagrams/architecture-layers.svg)
+
+### 페르소나 캡처 파이프라인
+
+사진 한 장이 `GeneratePersonInstanceMaskRequest` → `DetectFaceLandmarksRequest` → 크롭·색 샘플을 거쳐 살아 움직이는 카드가 되는 과정과, `PersonaManifest`/`PersonaAvatar` 레이어 구조.
+
+![페르소나 캡처 파이프라인](Docs/diagrams/persona-pipeline.svg)
+
+### 모임 세션 흐름
+
+호스트/손님이 MultipeerConnectivity 풀 메시로 좌석표·페르소나·포즈·음성·반응을 주고받는 순서(시퀀스 다이어그램).
+
+![모임 세션 흐름](Docs/diagrams/session-flow.svg)
+
+### 두레반 좌석 배치
+
+6석 원탁을 위에서 본 배치(`TableLayout`, 1 m = 160 px)와 옆에서 본 높이·카드 피벗 기준.
+
+![두레반 좌석 배치](Docs/diagrams/table-layout.svg)
+
+### 라이브 포즈 루프
+
+`GatheringSession.tick()` 30Hz 루프에서 머리/손/마이크 신호가 `PersonaPose` 로 묶여 네트워크를 거쳐 `PersonaAvatar.update` 까지 가는 경로, 데모 손님(`BotBrain`)의 자체 루프.
+
+![라이브 포즈 루프](Docs/diagrams/live-pose-loop.svg)
+
+### 모습 수집 분기 (Vision Pro / iPhone·iPad / Mac)
+
+`CaptureAvailability.detect()` 가 플랫폼별로 Vision Pro(카메라 접근 불가) · iPhone/iPad(TrueDepth·LiDAR 깊이) · Mac(일반 카메라)으로 갈라지는 경로와 각도 안내·전송 흐름.
+
+![모습 수집 분기](Docs/diagrams/capture-branches.svg)
+
+### 가우시안 스플랫 파이프라인 · 입 신호 우선순위
+
+`SplatBuilder` 가 깊이/부조로 3D 점을 만들고 측면 사진으로 색을 채워 `SplatMesh` 로 렌더링하는 과정, 그리고 플랫폼별 입 모양 신호 우선순위(얼굴 추적 → 입술 랜드마크 → 마이크).
+
+![가우시안 스플랫 파이프라인](Docs/diagrams/splat-pipeline.svg)
 
 ## 어떻게 동작하나
 
