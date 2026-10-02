@@ -28,19 +28,36 @@ struct HomeView: View {
         }
     }
 
+    /// 홈 카드의 3D 미리보기용 스플랫 (스튜디오가 이미 읽었으면 그것, 아니면 저장소에서)
+    @State private var homeSplats: SplatCloud?
+    @State private var homeSplatsKey = ""
+
     private var personaCard: some View {
         HStack(spacing: 20) {
             if let p = app.store.active, let img = app.store.image(for: p.id) {
-                Image(decorative: img, scale: 1)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 120, height: 150)
+                // 9차: 썸네일 PNG 대신 스튜디오와 같은 살아 있는 미리보기(흉상 샘플·스플랫·얼굴 키트)
+                PersonaPreviewView(manifest: p, image: img, splats: homeSplats, name: p.name,
+                                   levelSource: { 0 }, previewScale: 0.19, demoMotion: true, turntable: false)
+                    .frame(width: 260, height: 290)
                     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+                    .task(id: "\(p.id.uuidString)-\(p.splatCount)") {
+                        let key = "\(p.id.uuidString)-\(p.splatCount)"
+                        guard homeSplatsKey != key else { return }
+                        homeSplatsKey = key
+                        if app.studio.activeSplatsID == p.id, let s = app.studio.activeSplats {
+                            homeSplats = s
+                        } else {
+                            homeSplats = app.store.splatData(for: p.id).flatMap { SplatCloud(data: $0) }
+                        }
+                    }
                 VStack(alignment: .leading, spacing: 6) {
                     Text(p.name).font(.title2.bold())
-                    Text(p.kind == .photo ? "사진으로 만든 페르소나" : "샘플 페르소나")
+                    Text(p.demoAvatarCase.map { "블렌더 흉상 샘플 · \($0.displayName)" }
+                         ?? (p.kind == .photo ? "사진으로 만든 페르소나" : "샘플 페르소나"))
                         .foregroundStyle(.secondary)
-                    Text("\(p.imageWidth)×\(p.imageHeight) · \(p.face == nil ? "얼굴 리그 없음" : "눈·입 리그 있음")")
+                    Text(p.demoAvatar != nil
+                         ? "USDZ 흉상 · ARKit 52 블렌드셰이프"
+                         : "\(p.imageWidth)×\(p.imageHeight) · \(p.face == nil ? "얼굴 리그 없음" : "눈·입 리그 있음")\(p.hasSplats ? " · 스플랫 \(p.splatCount.formatted())개" : "")")
                         .font(.footnote)
                         .foregroundStyle(.tertiary)
                     Button("스튜디오에서 다듬기") { app.selectedTab = .studio }

@@ -34,6 +34,8 @@ final class GatheringSession {
         var isConnected = true
         /// 데모 손님이 마지막으로 한 말.
         var caption: String?
+        /// 블렌더 USDZ 데모 이용자 흉상 (데모 손님 전용).
+        var demoAvatar: DemoAvatar?
 
         var displayName: String { info.name }
         var hasPersona: Bool { manifest != nil && image != nil }
@@ -97,6 +99,8 @@ final class GatheringSession {
     private var tickCount = 0
     private var voiceSeq: UInt32 = 0
     private var pendingReactions: [(UUID, Reaction)] = []
+    /// 렌더러가 아바타의 비셈 큐로 넘길 TTS 문장.
+    private var pendingSpeeches: [(UUID, String, Double)] = []
     private var nextBotTurnAt: Double = 0
     private var botTurnPending = false
     private let log = Logger(subsystem: "com.coulson.Soban", category: "session")
@@ -141,12 +145,15 @@ final class GatheringSession {
 
     // MARK: - Mode transitions
 
+    /// 데모 손님은 블렌더 흉상 4종까지.
+    static let maxDemoGuests = DemoAvatar.allCases.count
+
     func startSolo(guests: Int = 3) {
         leave(keepImmersive: true)
         mode = .solo
         hostID = localID
         insertLocalParticipant(seat: 0)
-        for _ in 0..<min(guests, TableLayout.seatCount - 1) { addDemoGuest() }
+        for _ in 0..<min(guests, Self.maxDemoGuests) { addDemoGuest() }
         statusText = "혼자 펼친 소반 · 데모 손님 \(remoteCount)명"
         startTicking()
     }
@@ -154,24 +161,25 @@ final class GatheringSession {
     func addDemoGuest() {
         let used = Set(participants.values.compactMap(\.seat))
         guard let seat = (0..<TableLayout.seatCount).first(where: { !used.contains($0) }) else { return }
-        let index = participants.values.filter(\.isBot).count
-        let package = PlaceholderPersona.guest(index: index)
-        var p = Participant(id: UUID(), info: ParticipantInfo(id: UUID(), name: package.manifest.name, personaID: package.manifest.id))
+        // 내 페르소나가 흉상 샘플이면 같은 흉상은 손님으로 쓰지 않는다
+        var usedAvatars = Set(participants.values.compactMap(\.demoAvatar))
+        if let mine = store.active?.demoAvatarCase { usedAvatars.insert(mine) }
+        guard let avatar = DemoAvatar.allCases.first(where: { !usedAvatars.contains($0) }) else { return }
+        let index = DemoAvatar.allCases.firstIndex(of: avatar) ?? 0
+        // 2D 카드는 자리 카드 썸네일용으로만 쓴다. 상에는 블렌더 USDZ 흉상이 선다.
+        var package = PlaceholderPersona.guest(index: index)
+        package.manifest.name = avatar.displayName
+        package.manifest.accent = avatar.accent
+        var p = Participant(id: UUID(), info: ParticipantInfo(id: UUID(), name: avatar.displayName, personaID: package.manifest.id))
         p.manifest = package.manifest
         p.image = PersonaBuilder.decodeImage(package.bodyPNG)
         p.seat = seat
         p.isBot = true
-        p.bot = BotBrain(index: index, now: CACurrentMediaTime())
+        p.demoAvatar = avatar
+        var brain = BotBrain(index: index, now: CACurrentMediaTime())
+        brain.pitch = avatar.voicePitch
+        p.bot = brain
         participants[p.id] = p
-        if LaunchOptions.current.splats {
-            let botID = p.id
-            Task { [weak self] in
-                guard let cloud = try? await SplatBuilder.build(from: package, progress: { _ in }) else { return }
-                guard let self, var bot = participants[botID] else { return }
-                bot.splats = cloud
-                participants[botID] = bot
-            }
-        }
         if mode == .idle { startSolo(guests: 0) }
         statusText = mode == .solo ? "혼자 펼친 소반 · 데모 손님 \(remoteCount)명" : statusText
         if isHost { broadcastRoster() }
@@ -500,6 +508,7 @@ final class GatheringSession {
         p.bot = updated
         p.caption = line
         participants[id] = p
+        pendingSpeeches.append((id, line, duration))
         nextBotTurnAt = now + duration + Double.random(in: 0.8...2.2)
     }
 
@@ -583,17 +592,22 @@ final class GatheringSession {
         let renderables = participants.values.compactMap { p -> RenderableParticipant? in
             guard !p.isLocal, let seat = p.seat else { return nil }
             return RenderableParticipant(id: p.id, slot: TableLayout.slot(forSeat: seat, mySeat: mySeat),
-                                         manifest: p.manifest, image: p.image, splats: p.splats, pose: p.pose, level: p.level)
+                                         manifest: p.manifest, image: p.image, splats: p.splats, pose: p.pose, level: p.level,
+                                         demoAvatar: p.demoAvatar, displayName: p.displayName)
         }
         var selfRenderable: RenderableParticipant?
         if showSelfMirror, let me = participants[localID] {
             selfRenderable = RenderableParticipant(id: me.id, slot: 0, manifest: me.manifest, image: me.image,
-                                                   splats: me.splats, pose: me.pose, level: me.level)
+                                                   splats: me.splats, pose: me.pose, level: me.level,
+                                                   demoAvatar: nil, displayName: me.displayName)
         }
         let reactions = pendingReactions
         pendingReactions.removeAll()
+        let speeches = pendingSpeeches
+        pendingSpeeches.removeAll()
         renderer.sync(renderables, selfParticipant: selfRenderable,
-                      reactions: reactions.filter { $0.0 != localID || showSelfMirror }, now: now)
+                      reactions: reactions.filter { $0.0 != localID || showSelfMirror },
+                      speeches: speeches, now: now)
     }
 }
 #endif

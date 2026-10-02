@@ -105,6 +105,71 @@
 | T-719 | 실기기: 마이크 토글 → 레벨미터 반응, 허용 요청 버튼 → 시스템 프롬프트/수음 시작 | 🧪 |
 | T-720 | 실기기: AirDrop 으로 받은 .sobanpersona/.ply 가 공유 시트에서 '소반' 으로 열리는지 | 🧪 |
 
+## M8 · 블렌더 USDZ 에셋 (5차)
+| ID | 작업 | 상태 |
+|---|---|---|
+| T-801 | USDZ 9종을 `Soban/FaceAssets/` 에, `.blend` 원본을 `Docs/blender/` 에 추가(동기화 폴더 → 자동 번들) | ✅ |
+| T-802 | `FaceRig.swift`(컴포넌트/시스템/한글 비셈) 통합, `SobanFaceAssets` 멀티플랫폼화 + `FaceAssetLoader` 캐시 | ✅ |
+| T-803 | `TableAvatar` 프로토콜, `DemoBustAvatar`, `PlaceholderBustAvatar`, `AvatarDecor` | ✅ |
+| T-804 | 데모 손님 → USDZ 흉상 4명(이름·성별 음높이·포인트 색), TTS 자막 → `speak(text:duration:)` 비셈 큐 | ✅ |
+| T-805 | 스플랫 페르소나 USDZ 얼굴 키트 부착(리그 정렬·피부 틴트·남/여/끄기 피커, Studio·Companion) | ✅ |
+| T-806 | 키트 정렬 버그 수정(에셋 실제 눈알/입 중심 기준) — 시뮬레이터 확인 | ✅ |
+| T-807 | `INFOPLIST_FILE` 경로 복구(프로젝트 이동 후 빌드 깨짐) | ✅ |
+| T-808 | 실기기: 흉상 깜빡임·시선·립싱크, 실제 사진 스플랫 위 키트 정렬, 성능(4.8 MB×4 로드) | 🧪 |
+| T-809 | 데모 손님 자리 카드 썸네일을 USDZ 흉상 스냅샷으로 교체(현재 2D 카드 그대로) | ⏳ |
+
+## M9 · 키트 일체감 · 흉상 템플릿 · 컴패니언 미리보기 (6차)
+| ID | 작업 | 상태 |
+|---|---|---|
+| T-901 | 눈 키트: 눈알(흰자·홍채·동공) 숨기고 눈꺼풀만, 눈 간격/눈 높이 스케일, z 0.45 압축, 눈꺼풀 앞면 = 표면 +1.5 mm (`keepOnlyEyelids`) | ✅ |
+| T-902 | 입 키트: 입 폭 스케일, z 0.35 압축, 입술 앞면 = 표면 +1 mm, 머티리얼 색 기반 입술 틴트(`tintLips`), 눈꺼풀 피부 틴트도 색 기반 | ✅ |
+| T-903 | 키트를 카드(샘플로 체험)에도 부착 — 샘플 캐릭터 깜빡임/비셈 동작 | ✅ |
+| T-904 | `BustTemplate`: `SplatPlaceholder_Bust.usdz` → 정면 z-버퍼 템플릿, 행 평활 가장자리, `SplatBuilder.build(template:)` 우선순위 깊이→템플릿→부조 | ✅ |
+| T-905 | `FaceRig` 확장(눈썹·윤곽·머리카락색, 옵셔널) + `PersonaBuilder.makeRig`/`PlaceholderPersona` 채움 | ✅ |
+| T-906 | 머리카락 분류 → 볼륨 돔 + 2겹 셸, 경사 보정(옆면 줄무늬 완화) | ✅ |
+| T-907 | 컴패니언 미리보기: iOS/macOS 전용 `PerspectiveCamera`, 아바타 실제 크기, `sample` DEBUG 인자 | ✅ |
+| T-908 | 시뮬레이터 검증: 눈알 제거·깜빡임 프레임·입술 틴트·Mac 미리보기·두레반 | ✅ |
+| T-909 | 실기기: 실제 사진 스플랫에서 눈꺼풀/입술 크기·밀착감, 어깨 템플릿 맞춤, 머리카락 볼륨 자연스러움 | 🧪 |
+| T-910 | 옆면(큰 yaw) 줄무늬 완전 제거 — 표면 방향 정렬 스플랫(타원 쿼드) 또는 측면 보간 샘플 추가 | ⏳ |
+
+## M10 · 템플릿 변형 · 외형 힌트 · 흉상 샘플 · 상태 유지 (7차)
+| ID | 작업 | 상태 |
+|---|---|---|
+| T-1001 | `ThinPlateSpline` + `TemplateFit`: 랜드마크 TPS, 행별 실루엣 폭 맞춤, 얼굴 타원 블렌딩, `template.chinY/noseY` 측정 | ✅ |
+| T-1002 | `SplatBuilder.build(template:hints:)` 가 `fit.map` 으로 깊이를 읽음, 부조 96×128 | ✅ |
+| T-1003 | `AppearanceHints`/`AppearanceAnalyzer`: FoundationModels 사진 첨부 `@Generable`(OS 27) + 8초 타임아웃 + 휴리스틱 폴백, 매니페스트 저장, Studio/Companion 표시 | ✅ |
+| T-1004 | 샘플 = 블렌더 흉상 랜덤(`manifest.demoAvatar`), 미리보기·거울·상·원격 참가자 `DemoBustAvatar`, 스플랫 단계 건너뜀, 데모 손님 중복 회피 | ✅ |
+| T-1005 | `AppModel.studio` + `CompanionModel`(App 소유) + Combine 디바운스 저장/복원 | ✅ |
+| T-1006 | 첫 실행 스플랫 레이스 수정(`activeSplats` 를 splatCount 로도 갱신) | ✅ |
+| T-1007 | 검증: 시뮬 흉상 샘플·TPS 턴테이블, Mac Apple Intelligence 힌트·재실행 복원, 4개 빌드 | ✅ |
+| T-1008 | 실기기: 실제 사진에서 TPS 윤곽 맞춤·어깨 폭·앞머리 힌트 자연스러움, Vision Pro 에서 Apple Intelligence 힌트 응답 | 🧪 |
+| T-1009 | 흉상 샘플의 자리 카드/목록 썸네일을 USDZ 스냅샷으로(현재 비슷한 색의 만화 카드) | ⏳ |
+
+## M11 · ARKit 52 표준 · 네이티브 스플랫 · 표정 신호 (8차)
+| ID | 작업 | 상태 |
+|---|---|---|
+| T-1101 | `ArkitBlendShapes.swift`: 52 이름·`ArkitWeights`·비셈 프리셋·`ShapeNameAdapter`(레거시 13 ↔ ARKit 52) | ✅ |
+| T-1102 | `FaceRigSystem`: ARKit 공간 합성 → 어댑터, `externalWeights`, RMS 엔벨로프, 초성 폐쇄·코아티큘레이션·선행 | ✅ |
+| T-1103 | `SplatMesh.makeNative`: RealityKit 27 `GaussianSplatComponent`(LowLevelBuffer 인터리브), 시뮬레이터/구 OS 쿼드 폴백, `quadsplats` 인자 | ✅ |
+| T-1104 | `SplatJawDeformer`: jawOpen 턱 영역 위치 버퍼 재기록(키트와 같은 신호) | ✅ |
+| T-1105 | 입 안쪽 스플랫 컬링(페더) — 치아·입 안 메시 노출 | ✅ |
+| T-1106 | iPhone ARKit 52 전체 / Mac·iPhone 카메라 랜드마크 미니 세트 → `expressionSource` → `TableAvatar.setExpression` | ✅ |
+| T-1107 | `Docs/blender/ARKit52-요청.md` + UI 에 셰이프키 체계·렌더러 표시 | ✅ |
+| T-1108 | 검증: 시뮬 두레반 비셈/깜빡임, macOS 네이티브 스플랫 렌더, 4개 빌드 | ✅ |
+| T-1109 | 실기기: Vision Pro 네이티브 스플랫 품질(SH0 색·σ 크기·정렬)·턱 변형 자연스러움·스플랫 상한, iPhone TrueDepth 52 → 키트 직결 | 🧪 |
+| T-1110 | 블렌더 ARKit 52 재내보내기(10-03, Blender 5.2) 반영: 8개 USDZ 교체, 어댑터 직통 확인, 프리셋 보정(A+upperUp .3, E jaw .4), 시선→eyeLook* | ✅ |
+| T-1111 | SpeechAnalyzer(ko_KR 단어 타이밍) + 자모 비셈 타임라인, visionOS 가용성 확인 | ⏳ |
+| T-1112 | audio→ARKit-52 온디바이스 모델(wav2arkit ONNX/Core ML) 실험, 한국어 품질 평가 | ⏳ |
+
+## M12 · 실기기 피드백 (9차, 2026-10-03)
+| ID | 작업 | 상태 |
+|---|---|---|
+| T-1201 | 홈 카드가 썸네일 PNG 라 스튜디오와 다른 모습 → `PersonaPreviewView`(배율 0.26, 흉상·스플랫·키트) 로 통일, 스플랫은 스튜디오 캐시/저장소에서 | ✅ |
+| T-1202 | 스튜디오 마이크 레벨미터 0: `level` 을 세션 틱(상 펼쳤을 때만)이 갱신하던 구조 → `VoiceEngine` 자체 30Hz 레벨 태스크 | ✅ |
+| T-1203 | 입 모양 예시 → 한국어 TTS(`BotSpeech`)로 문장 재생 + 엔벨로프 레벨 + 비셈 큐(`speechRequest` → `PersonaPreviewView.speech`) | ✅ |
+| T-1204 | 상에서 마이크 불능/스위치 무반응: 엔진은 권한 있으면 항상 입력 포함 시작, `AVAudioEngineConfigurationChange`·인터럽션 복구, 실제 `engine.isRunning` 검사, 모임 화면에 레벨미터·상태·허용 버튼 | ✅ |
+| T-1205 | 실기기: 스튜디오 레벨미터, TTS 예시, 상에서 내 입 모양·음성 전송, 토글 on/off 반복 | 🧪 |
+
 ## M5 · 품질
 | ID | 작업 | 상태 |
 |---|---|---|

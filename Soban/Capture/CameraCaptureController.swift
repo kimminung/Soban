@@ -37,6 +37,8 @@ final class CameraCaptureController {
         didSet { frameSink?.mouthMode = mouthTrackingMode }
     }
     private(set) var mouthOpen: Float = 0
+    /// 8차: Vision 76점 랜드마크에서 추정한 ARKit 미니 세트(jawOpen·eyeBlink·mouthSmile·mouthPucker·browInnerUp). 깜빡임은 거칠다.
+    private(set) var faceWeights: ArkitWeights?
 
     private let session = AVCaptureSession()
     private let sessionQueue = DispatchQueue(label: "com.coulson.Soban.capture")
@@ -68,8 +70,8 @@ final class CameraCaptureController {
             return
         }
         weak var weakSelf = self
-        let sink = FrameSink { image, yaw, pitch, mouth in
-            Task { @MainActor in weakSelf?.handleFrame(image, yaw: yaw, pitch: pitch, mouth: mouth) }
+        let sink = FrameSink { image, yaw, pitch, mouth, weights in
+            Task { @MainActor in weakSelf?.handleFrame(image, yaw: yaw, pitch: pitch, mouth: mouth, weights: weights) }
         }
         sink.mouthMode = mouthTrackingMode
         frameSink = sink
@@ -200,7 +202,7 @@ final class CameraCaptureController {
 
     // MARK: - Frames
 
-    private func handleFrame(_ image: CGImage, yaw: Double?, pitch: Double?, mouth: Float?) {
+    private func handleFrame(_ image: CGImage, yaw: Double?, pitch: Double?, mouth: Float?, weights: ArkitWeights?) {
         guard isRunning else { return }
         previewImage = image
         if let yaw { yawDegrees = yaw }
@@ -208,6 +210,12 @@ final class CameraCaptureController {
         faceVisible = yaw != nil
         if mouthTrackingMode {
             if let mouth { mouthOpen = mouthOpen * 0.4 + mouth * 0.6 } else { mouthOpen *= 0.8 }
+            if let weights {
+                // 랜드마크 지터 완화: 0.5 스무딩
+                faceWeights = faceWeights.map { $0.blended(toward: weights, 0.5) } ?? weights
+            } else if mouth == nil, faceWeights != nil {
+                faceWeights = faceWeights?.blended(toward: .zero, 0.3)
+            }
             return
         }
         let now = CACurrentMediaTime()
@@ -269,7 +277,7 @@ final class CameraCaptureController {
 
 nonisolated final class FrameSink: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, @unchecked Sendable {
     private let ciContext = CIContext(options: [.cacheIntermediates: false])
-    private let handler: @Sendable (CGImage, Double?, Double?, Float?) -> Void
+    private let handler: @Sendable (CGImage, Double?, Double?, Float?, ArkitWeights?) -> Void
     private var frameIndex = 0
     private var lastYaw: Double?
     private var lastPitch: Double?
@@ -281,23 +289,63 @@ nonisolated final class FrameSink: NSObject, AVCaptureVideoDataOutputSampleBuffe
         set { lock.withLock { _mouthMode = newValue } }
     }
 
-    init(handler: @escaping @Sendable (CGImage, Double?, Double?, Float?) -> Void) {
+    init(handler: @escaping @Sendable (CGImage, Double?, Double?, Float?, ArkitWeights?) -> Void) {
         self.handler = handler
     }
 
-    /// 입술 랜드마크 → 입 벌림. 안쪽 입술 높이 / 얼굴 높이, 다문 상태(≈0.02) 를 0, 0.09 를 1 로.
-    private func mouthOpening(_ cg: CGImage) -> Float? {
+    /// 입술·눈·눈썹 랜드마크 → 입 벌림 + ARKit 미니 세트.
+    /// 입 벌림: 안쪽 입술 높이 / 얼굴 높이, 다문 상태(≈0.02) 를 0, 0.09 를 1 로.
+    private func faceSignals(_ cg: CGImage) -> (open: Float, weights: ArkitWeights)? {
         let request = VNDetectFaceLandmarksRequest()
         let handler = VNImageRequestHandler(cgImage: cg, options: [:])
         guard (try? handler.perform([request])) != nil,
               let face = request.results?.max(by: { $0.boundingBox.width < $1.boundingBox.width }),
-              let inner = face.landmarks?.innerLips else { return nil }
+              let lm = face.landmarks, let inner = lm.innerLips else { return nil }
         let pts = inner.normalizedPoints
         guard pts.count >= 4 else { return nil }
-        let ys = pts.map { $0.y }
-        let lipHeight = (ys.max()! - ys.min()!) * face.boundingBox.height // 이미지 정규화 단위
-        let ratio = Float(lipHeight / max(0.001, face.boundingBox.height))
-        return min(1, max(0, (ratio - 0.02) / 0.07))
+        let faceH = Float(max(0.001, face.boundingBox.height))
+        func span(_ r: VNFaceLandmarkRegion2D?, _ key: KeyPath<CGPoint, CGFloat>) -> Float? {
+            guard let p = r?.normalizedPoints, !p.isEmpty else { return nil }
+            let v = p.map { Float($0[keyPath: key]) }
+            return v.max()! - v.min()!
+        }
+        let lipHeight = span(inner, \.y) ?? 0
+        let open = min(1, max(0, (lipHeight - 0.02) / 0.07))
+
+        var w = ArkitWeights()
+        w[.jawOpen] = open * 0.7
+        w[.mouthFunnel] = open * 0.2
+        // 눈 개방도(높이/폭): 0.32 이상 열림, 0.14 이하 감김. Vision 의 leftEye 는 피사체 기준 왼쪽.
+        func blink(_ eye: VNFaceLandmarkRegion2D?) -> Float {
+            guard let h = span(eye, \.y), let wdt = span(eye, \.x), wdt > 0.001 else { return 0 }
+            let ratio = h / wdt
+            return min(1, max(0, (0.32 - ratio) / 0.18))
+        }
+        w[.eyeBlinkLeft] = blink(lm.leftEye)
+        w[.eyeBlinkRight] = blink(lm.rightEye)
+        // 미소: 바깥 입술 양끝이 입 중심보다 위(이미지 정규화, y 위가 +)
+        if let outer = lm.outerLips?.normalizedPoints, outer.count >= 6 {
+            let xs = outer.map { Float($0.x) }, ys = outer.map { Float($0.y) }
+            let midY = (ys.max()! + ys.min()!) / 2
+            let li = xs.firstIndex(of: xs.min()!)!, ri = xs.firstIndex(of: xs.max()!)!
+            let lift = ((ys[li] + ys[ri]) / 2 - midY) / max(0.001, ys.max()! - ys.min()!)
+            let smile = min(1, max(0, (lift - 0.05) / 0.3))
+            w[.mouthSmileLeft] = smile; w[.mouthSmileRight] = smile
+            // 오므림: 입 폭 / 얼굴 폭이 작으면
+            let mouthW = (xs.max()! - xs.min()!) * Float(face.boundingBox.width)
+            let ratio = mouthW / max(0.001, Float(face.boundingBox.width))
+            w[.mouthPucker] = min(1, max(0, (0.34 - ratio) / 0.12))
+            w[.mouthStretchLeft] = min(1, max(0, (ratio - 0.46) / 0.1)); w[.mouthStretchRight] = w[.mouthStretchLeft]
+        }
+        // 눈썹 올림: 눈썹–눈 거리 / 얼굴 높이
+        if let brow = lm.leftEyebrow?.normalizedPoints, let eye = lm.leftEye?.normalizedPoints, !brow.isEmpty, !eye.isEmpty {
+            let browY = brow.map { Float($0.y) }.reduce(0, +) / Float(brow.count)
+            let eyeY = eye.map { Float($0.y) }.reduce(0, +) / Float(eye.count)
+            let gap = (browY - eyeY) / max(0.001, faceH / Float(face.boundingBox.height))
+            w[.browInnerUp] = min(1, max(0, (gap - 0.11) / 0.06))
+        }
+        _ = faceH
+        return (open, w)
     }
 
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
@@ -313,10 +361,10 @@ nonisolated final class FrameSink: NSObject, AVCaptureVideoDataOutputSampleBuffe
         if mouthMode {
             // 입술 추적: 3프레임마다 랜드마크
             if frameIndex % 3 == 0 {
-                let mouth = mouthOpening(cg)
-                handler(cg, mouth == nil ? nil : (lastYaw ?? 0), mouth == nil ? nil : (lastPitch ?? 0), mouth)
+                let signals = faceSignals(cg)
+                handler(cg, signals == nil ? nil : (lastYaw ?? 0), signals == nil ? nil : (lastPitch ?? 0), signals?.open, signals?.weights)
             } else {
-                handler(cg, lastYaw, lastPitch, nil)
+                handler(cg, lastYaw, lastPitch, nil, nil)
             }
             return
         }
@@ -335,7 +383,7 @@ nonisolated final class FrameSink: NSObject, AVCaptureVideoDataOutputSampleBuffe
             }
         }
         let recent = frameIndex - lastFaceFrame < 12
-        handler(cg, recent ? lastYaw : nil, recent ? lastPitch : nil, nil)
+        handler(cg, recent ? lastYaw : nil, recent ? lastPitch : nil, nil, nil)
     }
 }
 

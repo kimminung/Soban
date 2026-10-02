@@ -31,6 +31,28 @@ nonisolated enum PlaceholderPersona {
         return make(name: name, style: style)
     }
 
+    /// 7차 "샘플로 체험": 블렌더 USDZ 데모 흉상 4종 중 하나. 카드 PNG 는 자리 카드·목록 썸네일용으로 비슷한 색의 만화 카드를 함께 그린다.
+    /// 매니페스트 `demoAvatar` 가 저장되므로 창을 오가거나 재실행해도 같은 흉상이 유지된다.
+    static func makeDemoBust(_ avatar: DemoAvatar, name: String? = nil) -> PersonaPackage {
+        let style: Style
+        switch avatar {
+        case .ethan:  style = Style(skin: RGB(r: 0.95, g: 0.82, b: 0.72), hair: RGB(r: 0.36, g: 0.24, b: 0.16), cloth: avatar.accent, hairLong: false, glasses: false)
+        case .olivia: style = Style(skin: RGB(r: 0.97, g: 0.86, b: 0.78), hair: RGB(r: 0.86, g: 0.72, b: 0.42), cloth: avatar.accent, hairLong: true, glasses: false)
+        case .lucas:  style = Style(skin: RGB(r: 0.90, g: 0.74, b: 0.62), hair: RGB(r: 0.22, g: 0.14, b: 0.10), cloth: avatar.accent, hairLong: false, glasses: true)
+        case .emma:   style = Style(skin: RGB(r: 0.96, g: 0.84, b: 0.76), hair: RGB(r: 0.52, g: 0.24, b: 0.16), cloth: avatar.accent, hairLong: false, glasses: false)
+        }
+        var package = make(name: name ?? avatar.displayName, style: style)
+        package.manifest.demoAvatar = avatar.rawValue
+        package.manifest.faceKit = avatar.sex.rawValue
+        package.manifest.accent = avatar.accent
+        return package
+    }
+
+    /// 4종 중 랜덤.
+    static func randomDemoBust(name: String? = nil) -> PersonaPackage {
+        makeDemoBust(DemoAvatar.allCases.randomElement() ?? .ethan, name: name)
+    }
+
     static func make(name: String, style: Style) -> PersonaPackage {
         let size = CGSize(width: 640, height: 800)
         let w = Int(size.width), h = Int(size.height)
@@ -174,7 +196,16 @@ nonisolated enum PlaceholderPersona {
             rightEye: NRect(pixelRect: rightEyeRect.insetBy(dx: -6, dy: -6), in: size),
             mouth: NRect(pixelRect: mouthRect, in: size),
             noseTip: NPoint(x: headCenter.x / size.width, y: (headCenter.y + 30) / size.height),
-            skin: style.skin, lip: style.lip)
+            skin: style.skin, lip: style.lip,
+            leftBrow: NRect(pixelRect: CGRect(x: leftEyeRect.minX, y: leftEyeRect.minY - 34, width: leftEyeRect.width, height: 20), in: size),
+            rightBrow: NRect(pixelRect: CGRect(x: rightEyeRect.minX, y: rightEyeRect.minY - 34, width: rightEyeRect.width, height: 20), in: size),
+            contour: (0...12).map { i -> NPoint in
+                // 턱 아래 → 관자놀이: 얼굴 타원의 아래 반원
+                let t = Double(i) / 12 * Double.pi
+                return NPoint(x: (headCenter.x - headRadius * cos(t)) / size.width,
+                              y: (headCenter.y + 10 + (headRadius + 10) * sin(t)) / size.height)
+            },
+            hair: style.hair)
         let manifest = PersonaManifest(name: name, kind: .placeholder, imageWidth: cg.width, imageHeight: cg.height,
                                        face: rig, accent: style.cloth, captureSource: .generated)
         return PersonaPackage(manifest: manifest, bodyPNG: png)

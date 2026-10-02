@@ -14,6 +14,8 @@ final class AppModel {
 
     let store: PersonaStore
     let session: GatheringSession
+    /// 7차: 스튜디오 상태를 앱이 소유 → 탭/창을 오가도, 재실행해도(디스크 저장) 초안·설정이 유지된다.
+    let studio = StudioModel()
     var selectedTab: AppTab = .home
     var immersiveState: ImmersiveState = .closed
     var openError: String?
@@ -31,12 +33,15 @@ final class AppModel {
         if let d = options.distance { session.tableDistance = d }
         if let tab = options.tab, let t = AppTab(rawValue: tab) { selectedTab = t }
         if options.sample, store.personas.isEmpty {
-            let sample = PlaceholderPersona.make(name: "콜슨", style: PlaceholderPersona.palette[0])
+            // `sample` = 만화 카드(스플랫/TPS 검증용), `bust` = 블렌더 흉상 샘플(스튜디오 '샘플로 체험' 과 같은 경로)
+            let sample = options.bust ? PlaceholderPersona.randomDemoBust(name: "콜슨")
+                : PlaceholderPersona.make(name: "콜슨", style: PlaceholderPersona.palette[0])
             _ = try? store.save(sample)
         }
         if options.splats, let active = store.active, !active.hasSplats, let pkg = store.package(for: active.id) {
             Task { [store, session] in
-                if let cloud = try? await SplatBuilder.build(from: pkg, progress: { _ in }) {
+                let template = await BustTemplateLoader.load()
+                if let cloud = try? await SplatBuilder.build(from: pkg, template: template, progress: { _ in }) {
                     try? store.saveSplats(cloud.encode(), count: cloud.count, for: active.id)
                     session.refreshLocalPersona()
                     if let path = options.exportPLYPath {

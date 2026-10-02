@@ -11,28 +11,15 @@ struct CompanionRootView: View {
     #if os(iOS)
     @State private var faceTracker = FaceMouthTracker()
     #endif
-    @State private var name = ""
-    @State private var package: PersonaPackage?
-    @State private var packageImage: CGImage?
-    @State private var splats: SplatCloud?
-    @State private var progress: PersonaBuilder.Progress?
-    @State private var splatProgress: SplatBuilder.Progress?
-    @State private var errorText: String?
-    @State private var isBuilding = false
-    @State private var isSplatting = false
-    @State private var exportURL: URL?
-    @State private var plyURL: URL?
-    @State private var packageURL: URL?
-    @State private var show3D = true
-    @State private var mouthEnabled = false
-    @State private var mouthSource: MouthSourceKind = .none
+    /// 앱이 소유하는 데이터 상태 (창을 오가도 유지, Combine 디바운스 저장).
+    @Bindable var model: CompanionModel
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     capabilityBanner
-                    if package == nil {
+                    if model.package == nil {
                         cameraSection
                     } else {
                         resultSection
@@ -48,6 +35,16 @@ struct CompanionRootView: View {
             #endif
         }
         .task {
+            #if DEBUG
+            // 검증용: `sample` 인자로 실행하면 Vision Pro 와 같은 샘플 페르소나를 바로 완성 상태로 띄운다
+            if CommandLine.arguments.contains("sample"), model.package == nil {
+                let sample = PlaceholderPersona.make(name: "콜슨", style: PlaceholderPersona.palette[0])
+                model.package = sample
+                model.packageImage = PersonaBuilder.decodeImage(sample.bodyPNG)
+                await buildSplats()
+                return
+            }
+            #endif
             await camera.start()
             sender.startBrowsing()
         }
@@ -72,7 +69,7 @@ struct CompanionRootView: View {
                 }
             }
             Spacer()
-            if camera.canSwitchCamera && package == nil {
+            if camera.canSwitchCamera && model.package == nil {
                 Button { camera.switchCamera() } label: { Image(systemName: "arrow.triangle.2.circlepath.camera") }
             }
         }
@@ -100,14 +97,14 @@ struct CompanionRootView: View {
             .frame(maxWidth: .infinity)
             .aspectRatio(previewAspect, contentMode: .fit)
 
-            if let err = camera.errorText ?? errorText {
+            if let err = camera.errorText ?? model.errorText {
                 Label(err, systemImage: "exclamationmark.triangle").font(.footnote).foregroundStyle(.orange)
             }
 
             thumbnails
 
             HStack {
-                TextField("페르소나 이름", text: $name)
+                TextField("페르소나 이름", text: $model.name)
                     .textFieldStyle(.roundedBorder)
                 Button("다시 촬영") { camera.restart() }
                     .disabled(camera.captures.isEmpty)
@@ -118,14 +115,14 @@ struct CompanionRootView: View {
             Button {
                 Task { await build() }
             } label: {
-                if isBuilding, let progress {
-                    HStack { ProgressView(); Text(progress.message) }
+                if model.isBuilding, let p = model.progress {
+                    HStack { ProgressView(); Text(p.message) }
                 } else {
                     Label("페르소나 만들기", systemImage: "person.crop.square.badge.camera")
                 }
             }
             .buttonStyle(.borderedProminent)
-            .disabled(camera.captures[.center] == nil || isBuilding)
+            .disabled(camera.captures[.center] == nil || model.isBuilding)
 
             Text("정면 사진으로 카드를 만들고, 측면·위쪽 사진은 머리 옆면 색을 채우는 데 쓰입니다. 모든 처리는 이 기기 안에서 끝납니다.")
                 .font(.footnote).foregroundStyle(.secondary)
@@ -219,21 +216,21 @@ struct CompanionRootView: View {
 
     private var resultSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            if let package, let img = packageImage {
+            if let package = model.package, let img = model.packageImage {
                 // 3D / 카드 미리보기
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Text(package.manifest.name).font(.title2.bold())
                         Spacer()
-                        Picker("", selection: $show3D) {
+                        Picker("", selection: $model.show3D) {
                             Text("카드").tag(false)
                             Text("입체(스플랫)").tag(true)
                         }
                         .pickerStyle(.segmented)
                         .frame(width: 200)
-                        .disabled(splats == nil)
+                        .disabled(model.splats == nil)
                     }
-                    PersonaPreviewView(manifest: package.manifest, image: img, splats: show3D ? splats : nil,
+                    PersonaPreviewView(manifest: package.manifest, image: img, splats: model.show3D ? model.splats : nil,
                                        name: package.manifest.name,
                                        levelSource: { [mic, camera] in
                                            #if os(iOS)
@@ -242,18 +239,29 @@ struct CompanionRootView: View {
                                            return currentMouthLevel(mic: mic, camera: camera)
                                            #endif
                                        },
-                                       demoMotion: !mouthEnabled, turntable: show3D && splats != nil && !mouthEnabled)
+                                       expressionSource: { [camera] in
+                                           // 8차: iPhone TrueDepth 는 ARKit 52 전체(깜빡임 포함), 카메라 입술 모드는 랜드마크 미니 세트
+                                           #if os(iOS)
+                                           if model.mouthSource == .faceTracking, faceTracker.isRunning { return (faceTracker.weights, true) }
+                                           #endif
+                                           if model.mouthSource == .cameraLips, let w = camera.faceWeights { return (w, false) }
+                                           return nil
+                                       },
+                                       demoMotion: !model.mouthEnabled, turntable: model.show3D && model.splats != nil && !model.mouthEnabled)
                         .frame(height: 360)
                         .background(
                             LinearGradient(colors: [Color(red: 0.98, green: 0.96, blue: 0.91), Color(red: 0.90, green: 0.84, blue: 0.72)],
                                            startPoint: .top, endPoint: .bottom),
                             in: RoundedRectangle(cornerRadius: 18))
+                    if let info = model.infoText {
+                        Label(info, systemImage: "arrow.counterclockwise.circle").font(.footnote).foregroundStyle(.green)
+                    }
                     HStack(spacing: 14) {
                         Label("\(package.manifest.imageWidth)×\(package.manifest.imageHeight)", systemImage: "photo")
                         Label(package.manifest.face == nil ? "얼굴 리그 없음" : "눈·입 리그", systemImage: "face.dashed")
                         Label(package.manifest.hasDepth ? "깊이 보정" : "깊이 없음", systemImage: "cube.transparent")
                         Label("보조 각도 \(package.sideViews.count)장", systemImage: "rectangle.stack")
-                        if let splats { Label("스플랫 \(splats.count.formatted())개", systemImage: "sparkles") }
+                        if let s = model.splats { Label("스플랫 \(s.count.formatted())개", systemImage: "sparkles") }
                     }
                     .font(.footnote).foregroundStyle(.secondary)
                 }
@@ -261,28 +269,45 @@ struct CompanionRootView: View {
                 // 스플랫
                 VStack(alignment: .leading, spacing: 8) {
                     Text("가우시안 스플랫 입체화").font(.headline)
+                    HStack {
+                        Text("얼굴 키트").font(.subheadline)
+                        Picker("", selection: $model.faceKit) {
+                            Text("남성형").tag("Male")
+                            Text("여성형").tag("Female")
+                            Text("끄기").tag("none")
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(maxWidth: 260)
+                        .onChange(of: model.faceKit) { _, v in model.package?.manifest.faceKit = v }
+                    }
+                    Text("블렌더 USDZ 눈·입 키트가 스플랫 얼굴 위에 붙어 깜빡임과 입 모양을 블렌드셰이프로 움직입니다.")
+                        .font(.caption).foregroundStyle(.secondary)
                     Text(package.manifest.hasDepth
                          ? "깊이 맵으로 3D 점을 만들고 각 점을 가우시안 스플랫으로 초기화합니다. 측면 사진으로 머리 옆면 색을 채웁니다."
-                         : "깊이가 없어 얼굴 리그에 맞춘 머리 타원체·몸통 부조로 3D 점을 만듭니다. 측면 사진으로 머리 옆면 색을 채웁니다.")
+                         : "깊이가 없어 흉상 템플릿을 Vision 76점 랜드마크에 TPS 로 휘고, 목·어깨·머리카락은 인물 실루엣 폭에 맞춥니다. 측면 사진으로 머리 옆면 색을 채웁니다.")
                         .font(.footnote).foregroundStyle(.secondary)
+                    if let hints = package.manifest.appearance {
+                        Label("외형 힌트: \(hints.summary)", systemImage: "sparkle.magnifyingglass")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                     HStack {
                         Button {
                             Task { await buildSplats() }
                         } label: {
-                            if isSplatting, let splatProgress {
-                                HStack { ProgressView(); Text(splatProgress.message) }
+                            if model.isSplatting, let p = model.splatProgress {
+                                HStack { ProgressView(); Text(p.message) }
                             } else {
-                                Label(splats == nil ? "입체(스플랫) 만들기" : "다시 만들기", systemImage: "sparkles")
+                                Label(model.splats == nil ? "입체(스플랫) 만들기" : "다시 만들기", systemImage: "sparkles")
                             }
                         }
                         .buttonStyle(.borderedProminent)
-                        .disabled(isSplatting)
-                        if let plyURL {
-                            ShareLink(item: plyURL) { Label("3DGS PLY 내보내기", systemImage: "square.and.arrow.up") }
+                        .disabled(model.isSplatting)
+                        if let url = model.plyURL {
+                            ShareLink(item: url) { Label("3DGS PLY 내보내기", systemImage: "square.and.arrow.up") }
                         }
                     }
-                    if let packageURL {
-                        ShareLink(item: packageURL) {
+                    if let url = model.packageURL {
+                        ShareLink(item: url) {
                             Label("소반 패키지(.sobanpersona) 공유 — AirDrop 으로 Vision Pro 에서 바로 열기", systemImage: "visionpro.and.arrow.forward")
                         }
                         Text("Vision Pro 에서 받은 뒤 공유 시트에서 '소반' 을 고르면 카드·깊이·측면·스플랫이 한 번에 초안으로 열립니다. PLY 만 보내도 소반이 열어 카드와 얼굴 리그를 다시 만듭니다.")
@@ -307,11 +332,11 @@ struct CompanionRootView: View {
                             Image(systemName: "visionpro")
                             Text(r.name)
                             Spacer()
-                            Button(sender.isSending ? "전송 중…" : (splats == nil ? "사진만 보내기" : "스플랫 포함 보내기")) {
+                            Button(sender.isSending ? "전송 중…" : (model.splats == nil ? "사진만 보내기" : "스플랫 포함 보내기")) {
                                 var pkg = package
-                                pkg.splats = splats?.encode()
-                                pkg.manifest.hasSplats = splats != nil
-                                pkg.manifest.splatCount = splats?.count ?? 0
+                                pkg.splats = model.splats?.encode()
+                                pkg.manifest.hasSplats = model.splats != nil
+                                pkg.manifest.splatCount = model.splats?.count ?? 0
                                 sender.send(pkg, to: r)
                             }
                             .buttonStyle(.borderedProminent)
@@ -323,7 +348,7 @@ struct CompanionRootView: View {
                     if sender.didSend {
                         Label("전송 완료", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
                     }
-                    Text(splats == nil
+                    Text(model.splats == nil
                          ? "사진만 보내면 Vision Pro 가 받은 다각도 사진으로 직접 스플랫을 만들어 초안으로 띄웁니다."
                          : "스플랫까지 보내면 Vision Pro 는 바로 입체 초안을 띄웁니다. 저장을 누르면 즉시 내 페르소나가 됩니다.")
                         .font(.footnote).foregroundStyle(.secondary)
@@ -332,16 +357,12 @@ struct CompanionRootView: View {
                 .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
 
                 HStack {
-                    if let exportURL {
-                        ShareLink(item: exportURL) { Label("카드 PNG 공유 (AirDrop)", systemImage: "square.and.arrow.up") }
+                    if let url = model.exportURL {
+                        ShareLink(item: url) { Label("카드 PNG 공유 (AirDrop)", systemImage: "square.and.arrow.up") }
                     }
                     Button("다시 촬영") {
                         stopMouth()
-                        self.package = nil
-                        packageImage = nil
-                        splats = nil
-                        plyURL = nil
-                        packageURL = nil
+                        model.clear()
                         Task { await camera.start() }
                         camera.restart()
                     }
@@ -355,24 +376,26 @@ struct CompanionRootView: View {
             HStack {
                 Text("움직여 보기 — 입 모양").font(.headline)
                 Spacer()
-                Toggle("", isOn: $mouthEnabled).labelsHidden()
-                    .onChange(of: mouthEnabled) { _, on in
+                Toggle("", isOn: $model.mouthEnabled).labelsHidden()
+                    .onChange(of: model.mouthEnabled) { _, on in
                         if on { Task { await startMouth() } } else { stopMouth() }
                     }
             }
             HStack(spacing: 10) {
-                Image(systemName: mouthSource.systemImage)
-                Text(mouthEnabled ? "입 신호: \(mouthSource.title)" : "켜면 이 기기에서 가능한 가장 좋은 입 신호를 고릅니다")
+                Image(systemName: model.mouthSource.systemImage)
+                Text(model.mouthEnabled ? "입 신호: \(model.mouthSource.title)" : "켜면 이 기기에서 가능한 가장 좋은 입 신호를 고릅니다")
                     .font(.footnote)
                 Spacer()
             }
             Text("우선순위: 얼굴 추적(TrueDepth) → 카메라 입술 랜드마크 → 마이크 음량. 미리보기 페르소나의 입이 따라 움직입니다.")
                 .font(.caption).foregroundStyle(.secondary)
-            if mouthEnabled {
+            Text("TrueDepth 는 ARKit 52 전체(깜빡임 포함), 카메라는 랜드마크 미니 세트(턱·깜빡임·미소·오므림·눈썹)로 키트를 직접 구동합니다. 셰이프키: \(FaceRigSystem.lastNamingDescription) · 스플랫 렌더: \(SplatMesh.nativeAvailable ? "RealityKit 27 네이티브(턱 변형)" : "쿼드 아틀라스")")
+                .font(.caption2).foregroundStyle(.tertiary)
+            if model.mouthEnabled {
                 VoiceLevelBar(level: currentLevel, peak: mic.isRunning ? mic.peak : currentLevel)
                 HStack(spacing: 12) {
                     Text("마이크: \(mic.permission)").font(.caption).foregroundStyle(.secondary)
-                    if !mic.permissionGranted && mouthSource == .microphone {
+                    if !mic.permissionGranted && model.mouthSource == .microphone {
                         Button("마이크 허용 요청") { Task { await mic.start() } }.font(.caption)
                     }
                 }
@@ -398,7 +421,7 @@ struct CompanionRootView: View {
 
     #if os(iOS)
     private func currentMouthLevel(mic: MicLevelMeter, camera: CameraCaptureController, face: FaceMouthTracker) -> Float {
-        switch mouthSource {
+        switch model.mouthSource {
         case .faceTracking: return face.level
         case .cameraLips: return camera.mouthOpen
         case .microphone: return mic.level
@@ -407,7 +430,7 @@ struct CompanionRootView: View {
     }
     #else
     private func currentMouthLevel(mic: MicLevelMeter, camera: CameraCaptureController) -> Float {
-        switch mouthSource {
+        switch model.mouthSource {
         case .cameraLips: return camera.mouthOpen
         case .microphone: return mic.level
         default: return 0
@@ -421,19 +444,19 @@ struct CompanionRootView: View {
         if FaceMouthTracker.isSupported {
             camera.stop()
             faceTracker.start()
-            mouthSource = .faceTracking
+            model.mouthSource = .faceTracking
             return
         }
         #endif
         if case .unavailable = camera.capability {
             await mic.start()
-            mouthSource = mic.isRunning ? .microphone : .none
+            model.mouthSource = mic.isRunning ? .microphone : .none
             return
         }
         camera.mouthTrackingMode = true
         if !camera.isRunning { await camera.start() }
-        mouthSource = camera.isRunning ? .cameraLips : .microphone
-        if mouthSource == .microphone { await mic.start() }
+        model.mouthSource = camera.isRunning ? .cameraLips : .microphone
+        if model.mouthSource == .microphone { await mic.start() }
     }
 
     private func stopMouth() {
@@ -441,59 +464,67 @@ struct CompanionRootView: View {
         faceTracker.stop()
         #endif
         camera.mouthTrackingMode = false
-        if package != nil { camera.stop() }
+        if model.package != nil { camera.stop() }
         mic.stop()
-        mouthSource = .none
+        model.mouthSource = .none
     }
 
     // MARK: - Actions
 
     private func build() async {
         guard let input = camera.makeCaptureInput() else { return }
-        isBuilding = true
-        errorText = nil
-        defer { isBuilding = false }
-        let personaName = name.trimmingCharacters(in: .whitespaces).isEmpty ? "내 페르소나" : name
+        model.isBuilding = true
+        model.errorText = nil
+        defer { model.isBuilding = false }
+        let personaName = model.name.trimmingCharacters(in: .whitespaces).isEmpty ? "내 페르소나" : model.name
         do {
             let result = try await PersonaBuilder.build(capture: input, name: personaName) { p in
-                Task { @MainActor in progress = p }
+                Task { @MainActor in model.progress = p }
             }
-            package = result
-            packageImage = PersonaBuilder.decodeImage(result.bodyPNG)
+            model.package = result
+            model.packageImage = PersonaBuilder.decodeImage(result.bodyPNG)
             let url = FileManager.default.temporaryDirectory.appendingPathComponent("소반-\(personaName).png")
             try? result.bodyPNG.write(to: url, options: .atomic)
-            exportURL = url
-            packageURL = try? PersonaPackageFile.write(result)
+            model.exportURL = url
+            model.packageURL = try? PersonaPackageFile.write(result)
             camera.stop()
             await buildSplats()
         } catch {
-            errorText = error.localizedDescription
+            model.errorText = error.localizedDescription
         }
-        progress = nil
+        model.progress = nil
     }
 
     private func buildSplats() async {
-        guard let package else { return }
-        isSplatting = true
-        defer { isSplatting = false }
+        guard let package = model.package else { return }
+        model.isSplatting = true
+        defer { model.isSplatting = false }
         do {
-            let cloud = try await SplatBuilder.build(from: package) { p in
-                Task { @MainActor in splatProgress = p }
+            // Vision Pro 와 같은 파이프라인: 흉상 템플릿 TPS 변형 + 실루엣 폭 맞춤 + 외형 힌트 + 머리카락 볼륨
+            let template = await BustTemplateLoader.load()
+            var package = package
+            if let img = model.packageImage {
+                model.splatProgress = SplatBuilder.Progress(step: 0, total: 5, message: AppearanceAnalyzer.isModelAvailable ? "Apple Intelligence 로 외형 힌트 읽는 중" : "외형 힌트(휴리스틱) 읽는 중")
+                package.manifest.appearance = await AppearanceAnalyzer.analyze(image: img, rig: package.manifest.face)
+                model.package?.manifest.appearance = package.manifest.appearance
             }
-            splats = cloud
-            show3D = true
+            let cloud = try await SplatBuilder.build(from: package, template: template, hints: package.manifest.appearance) { p in
+                Task { @MainActor in model.splatProgress = p }
+            }
+            model.splats = cloud
+            model.show3D = true
             let url = FileManager.default.temporaryDirectory.appendingPathComponent("소반-\(package.manifest.name).ply")
             try? cloud.plyData().write(to: url, options: .atomic)
-            plyURL = url
+            model.plyURL = url
             var full = package
             full.splats = cloud.encode()
             full.manifest.hasSplats = true
             full.manifest.splatCount = cloud.count
-            packageURL = try? PersonaPackageFile.write(full)
+            model.packageURL = try? PersonaPackageFile.write(full)
         } catch {
-            errorText = "스플랫 생성 실패: \(error.localizedDescription)"
+            model.errorText = "스플랫 생성 실패: \(error.localizedDescription)"
         }
-        splatProgress = nil
+        model.splatProgress = nil
     }
 }
 #endif

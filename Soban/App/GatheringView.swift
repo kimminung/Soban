@@ -102,7 +102,8 @@ struct GatheringView: View {
                 Button {
                     session.addDemoGuest()
                 } label: { Label("손님 추가", systemImage: "person.badge.plus") }
-                .disabled(session.participants.count >= TableLayout.seatCount)
+                .disabled(session.participants.count >= TableLayout.seatCount
+                          || session.participants.values.filter(\.isBot).count >= GatheringSession.maxDemoGuests)
             }
         }
     }
@@ -177,6 +178,18 @@ struct GatheringView: View {
             Text("설정").font(.headline)
             Toggle(isOn: $session.micEnabled) {
                 Label("마이크 — 입 모양 + 음성 전송", systemImage: session.micEnabled ? "mic" : "mic.slash")
+            }
+            // 9차: 상에서도 수음 상태·레벨을 바로 볼 수 있게
+            VoiceLevelBar(level: session.voice.level, peak: session.voice.peak).frame(height: 14)
+            HStack(spacing: 12) {
+                Text(session.voice.statusText).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                Spacer()
+                if session.micEnabled && !session.voice.isCapturing {
+                    Button("마이크 허용 요청 · 다시 연결") {
+                        Task { await session.voice.requestMicrophoneAccess() }
+                    }
+                    .font(.caption)
+                }
             }
             Toggle(isOn: $session.showSelfMirror) {
                 Label("내 모습 보기 — 내 자리 오른쪽 위에 거울처럼 띄우기", systemImage: "person.crop.rectangle.badge.plus")

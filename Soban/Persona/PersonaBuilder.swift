@@ -218,10 +218,22 @@ nonisolated enum PersonaBuilder {
         let skin = raster.averageColor(in: cheek) ?? .skinDefault
         let lip = raster.averageColor(in: lipsPixel).map { $0.mixed(with: .lipDefault, 0.35) } ?? .lipDefault
 
+        // 6차: 눈썹·얼굴 윤곽(온디바이스 Vision 76점)·머리카락색. 입체화에서 헤어라인/머리 볼륨/어깨 맞춤에 쓴다.
+        let leftBrow = region(landmarks.leftEyebrow, pad: 0.15)
+        let rightBrow = region(landmarks.rightEyebrow, pad: 0.15)
+        let contour = landmarks.faceContour.pointsInImageCoordinates(imageSize, origin: .upperLeft).map {
+            NPoint(x: ($0.x - crop.minX) / cropSize.width, y: ($0.y - crop.minY) / cropSize.height)
+        }
+        let hairRect = CGRect(x: faceBox.midX - faceBox.width * 0.22, y: faceBox.minY - faceBox.height * 0.26,
+                              width: faceBox.width * 0.44, height: faceBox.height * 0.18).offsetBy(dx: crop.minX, dy: crop.minY)
+        let hair = raster.averageColor(in: hairRect)
+
         return FaceRig(faceBox: NRect(pixelRect: faceBox, in: cropSize),
                        leftEye: leftEye, rightEye: rightEye, mouth: mouth,
                        noseTip: NPoint(x: noseCenter.x / cropSize.width, y: noseCenter.y / cropSize.height),
-                       skin: skin, lip: lip)
+                       skin: skin, lip: lip,
+                       leftBrow: leftBrow, rightBrow: rightBrow,
+                       contour: contour.isEmpty ? nil : contour, hair: hair)
     }
 
     private static func torsoSampleRect(crop: CGRect, face: FaceRig?, imageSize: CGSize) -> CGRect {

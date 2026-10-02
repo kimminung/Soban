@@ -76,6 +76,19 @@ nonisolated struct FaceRig: Codable, Hashable, Sendable {
     var noseTip: NPoint
     var skin: RGB
     var lip: RGB
+    /// 6차 추가(없으면 nil, 구 패키지 호환): 눈썹 박스 — 머리카락 경계(헤어라인) 추정에 쓴다.
+    var leftBrow: NRect? = nil
+    var rightBrow: NRect? = nil
+    /// 얼굴 윤곽(턱→관자놀이) 정규화 다각형. Vision 76점 랜드마크의 `faceContour`.
+    var contour: [NPoint]? = nil
+    /// 이마 위 머리카락 평균색 (머리카락 영역 분류용).
+    var hair: RGB? = nil
+
+    /// 눈썹 윗선(정규화 v). 눈썹이 없으면 눈 위 한 눈 높이 지점.
+    var browLineV: Double {
+        if let l = leftBrow, let r = rightBrow { return min(l.y, r.y) }
+        return min(leftEye.y, rightEye.y) - max(leftEye.height, rightEye.height) * 0.9
+    }
 }
 
 // MARK: - Persona manifest
@@ -120,6 +133,14 @@ nonisolated struct PersonaManifest: Codable, Hashable, Identifiable, Sendable {
     /// `depth.png` 8비트 값을 미터로 되돌리기 위한 범위(밝을수록 가까움: 255 → near).
     var depthNearMeters: Float?
     var depthFarMeters: Float?
+    /// 스플랫 입체일 때 붙이는 USDZ 얼굴 키트: "Male" / "Female" / "none"(2D 스프라이트). nil 이면 남성형.
+    var faceKit: String?
+    /// 7차: 사진 대신 블렌더 USDZ 데모 흉상으로 보여 주는 페르소나(샘플). `DemoAvatar.rawValue`. 저장되므로 창을 오가거나 재실행해도 같은 흉상.
+    var demoAvatar: String?
+    /// 7차: 입체화에 쓴 외형 힌트(FoundationModels 또는 휴리스틱).
+    var appearance: AppearanceHints?
+
+    var demoAvatarCase: DemoAvatar? { demoAvatar.flatMap(DemoAvatar.init(rawValue:)) }
 
     init(id: UUID = UUID(), name: String, kind: Kind, imageWidth: Int, imageHeight: Int,
          face: FaceRig?, accent: RGB, cardHeightMeters: Float = 0.8, mouthStrength: Float = 1.0,
@@ -145,7 +166,8 @@ nonisolated struct PersonaManifest: Codable, Hashable, Identifiable, Sendable {
     // 스키마 1 (captureSource 없음) 과의 호환
     nonisolated enum CodingKeys: String, CodingKey {
         case id, name, createdAt, kind, imageWidth, imageHeight, face, accent, cardHeightMeters, mouthStrength,
-             schemaVersion, captureSource, hasDepth, capturedOn, hasSplats, splatCount, depthNearMeters, depthFarMeters
+             schemaVersion, captureSource, hasDepth, capturedOn, hasSplats, splatCount, depthNearMeters, depthFarMeters, faceKit,
+             demoAvatar, appearance
     }
 
     init(from decoder: any Decoder) throws {
@@ -169,6 +191,18 @@ nonisolated struct PersonaManifest: Codable, Hashable, Identifiable, Sendable {
         splatCount = try c.decodeIfPresent(Int.self, forKey: .splatCount) ?? 0
         depthNearMeters = try c.decodeIfPresent(Float.self, forKey: .depthNearMeters)
         depthFarMeters = try c.decodeIfPresent(Float.self, forKey: .depthFarMeters)
+        faceKit = try c.decodeIfPresent(String.self, forKey: .faceKit)
+        demoAvatar = try c.decodeIfPresent(String.self, forKey: .demoAvatar)
+        appearance = try? c.decodeIfPresent(AppearanceHints.self, forKey: .appearance)
+    }
+
+    /// 얼굴 키트 선택을 해석한다. nil → 남성형, "none" → 키트 없음(2D 스프라이트).
+    var faceKitSex: FaceKitSex? {
+        switch faceKit {
+        case nil, "Male", "male": .male
+        case "Female", "female": .female
+        default: nil
+        }
     }
 
     var aspect: Float { imageHeight == 0 ? 1 : Float(imageWidth) / Float(imageHeight) }

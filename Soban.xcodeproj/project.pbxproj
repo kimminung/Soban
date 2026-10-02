@@ -274,7 +274,7 @@
 				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = MyApp/Info.plist;
+				INFOPLIST_FILE = Soban/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "소반";
 				INFOPLIST_KEY_NSCameraUsageDescription = "소반 캡처는 카메라로 얼굴을 여러 각도에서 촬영해 페르소나를 만듭니다. 사진은 기기 안에서만 처리됩니다.";
 				INFOPLIST_KEY_NSHandsTrackingUsageDescription = "손 위치를 페르소나의 손짓으로 표현하고, 손들기 같은 반응을 인식합니다.";
@@ -327,7 +327,7 @@
 				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = MyApp/Info.plist;
+				INFOPLIST_FILE = Soban/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "소반";
 				INFOPLIST_KEY_NSCameraUsageDescription = "소반 캡처는 카메라로 얼굴을 여러 각도에서 촬영해 페르소나를 만듭니다. 사진은 기기 안에서만 처리됩니다.";
 				INFOPLIST_KEY_NSHandsTrackingUsageDescription = "손 위치를 페르소나의 손짓으로 표현하고, 손들기 같은 반응을 인식합니다.";

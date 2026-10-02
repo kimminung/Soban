@@ -68,7 +68,10 @@ final class VoiceEngine {
             try session.setCategory(.playAndRecord, mode: .voiceChat, options: [])
             try session.setActive(true)
 
-            if withInput && AVAudioApplication.shared.recordPermission == .granted {
+            // 9차: 권한이 있으면 **항상** 입력을 포함해 시작한다. 출력 전용으로 먼저 돌던 엔진을 나중에 입력 포함으로
+            // 재시작하면(데모 손님 TTS 가 먼저 켜지는 경우) 플레이어가 끊기고 포맷이 0 으로 잡히는 일이 있었다.
+            _ = withInput
+            if AVAudioApplication.shared.recordPermission == .granted {
                 // 엔진 시작 전에 입력 노드를 생성해 I/O 유닛이 입력을 포함하도록 한다.
                 let format = engine.inputNode.outputFormat(forBus: 0)
                 inputConfigured = format.sampleRate > 0 && format.channelCount > 0
@@ -93,6 +96,7 @@ final class VoiceEngine {
             try engine.start()
             isEngineRunning = true
             errorText = nil
+            installObserversIfNeeded()
         } catch {
             errorText = "오디오 엔진 시작 실패: \(error.localizedDescription)"
             log.error("engine start failed: \(error.localizedDescription)")
@@ -144,6 +148,12 @@ final class VoiceEngine {
     }
 
     func startCapture() async {
+        // 캐시된 플래그가 아니라 실제 엔진 상태를 믿는다 (라우트 변경으로 조용히 멈춘 경우 복구)
+        if isEngineRunning && !engine.isRunning {
+            isEngineRunning = false
+            inputConfigured = false
+            if isCapturing { isCapturing = false; levelTask?.cancel(); levelTask = nil }
+        }
         guard !isCapturing else { return }
         guard audioAvailable else {
             errorText = "시뮬레이터에서는 오디오(마이크·공간 음향)를 끕니다. 실기기에서 확인하세요."
@@ -178,6 +188,7 @@ final class VoiceEngine {
             }
             isCapturing = true
             errorText = nil
+            startLevelTask()
         } catch {
             errorText = "마이크 탭 설치 실패: \(error.localizedDescription)"
         }
@@ -187,16 +198,74 @@ final class VoiceEngine {
         guard isCapturing else { return }
         engine.inputNode.removeTap(onBus: 0)
         isCapturing = false
+        levelTask?.cancel()
+        levelTask = nil
         level = 0
+        peak = 0
     }
 
-    /// 틱마다 호출: 레벨 갱신 + 전송 대기 중인 PCM 청크 반환.
+    /// 9차: 레벨은 세션 틱(상이 펼쳐졌을 때만 돎)과 무관하게 엔진이 직접 30Hz 로 갱신한다.
+    /// (스튜디오에서 수음은 되는데 레벨미터가 0 이던 원인 — 틱이 없으면 아무도 `level` 을 갱신하지 않았다.)
+    private var levelTask: Task<Void, Never>?
+    private func startLevelTask() {
+        levelTask?.cancel()
+        levelTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+                let lvl = self.sink.takeLevel()
+                self.level = max(lvl, self.level * 0.6)
+                self.peak = max(lvl, self.peak * 0.985)
+                try? await Task.sleep(for: .milliseconds(33))
+            }
+        }
+    }
+
+    /// 틱마다 호출: 전송 대기 중인 PCM 청크 반환 (레벨은 `level` 참조).
     func drainCapture() -> [Data] {
-        let (lvl, chunks) = sink.drain()
-        // 부드럽게 감쇠
-        level = max(lvl, level * 0.6)
-        peak = max(lvl, peak * 0.985)
-        return chunks
+        sink.drainChunks()
+    }
+
+    /// 상태 한 줄 (설정 화면 표시용).
+    var statusText: String {
+        if let errorText { return errorText }
+        if isCapturing { return "수음 중 · \(inputStatusText)" }
+        if isEngineRunning { return "엔진 켜짐 · 수음 대기 · \(inputStatusText)" }
+        return "엔진 꺼짐 · \(permissionText)"
+    }
+
+    // MARK: - Route / configuration changes (9차)
+
+    private var observersInstalled = false
+    /// 이머시브 공간이 열리거나 라우트가 바뀌면 엔진 구성이 바뀌어(`AVAudioEngineConfigurationChange`) 엔진이 멈추고 탭이 죽는다.
+    /// 그때 수음 중이었으면 엔진을 다시 시작하고 탭을 다시 설치한다. 인터럽션(전화 등) 종료 후에도 같다.
+    private func installObserversIfNeeded() {
+        guard !observersInstalled else { return }
+        observersInstalled = true
+        NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main) { [weak self] _ in
+            Task { @MainActor in await self?.recoverAfterConfigurationChange(reason: "구성 변경") }
+        }
+        NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] note in
+            guard let type = (note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt).flatMap(AVAudioSession.InterruptionType.init), type == .ended else { return }
+            Task { @MainActor in await self?.recoverAfterConfigurationChange(reason: "인터럽션 종료") }
+        }
+    }
+
+    private func recoverAfterConfigurationChange(reason: String) async {
+        let wasCapturing = isCapturing
+        let wasRunning = isEngineRunning
+        log.notice("audio \(reason): recovering (capturing=\(wasCapturing))")
+        if wasCapturing {
+            engine.inputNode.removeTap(onBus: 0)
+            isCapturing = false
+            levelTask?.cancel(); levelTask = nil
+        }
+        for (_, p) in players { p.stop() }
+        engine.stop()
+        isEngineRunning = false
+        inputConfigured = false
+        guard wasRunning else { return }
+        startEngine(withInput: wasCapturing)
+        if wasCapturing { await startCapture() }
     }
 
     // MARK: - Playback
@@ -340,12 +409,19 @@ nonisolated final class CaptureSink: @unchecked Sendable {
         }
     }
 
-    func drain() -> (level: Float, chunks: [Data]) {
+    func takeLevel() -> Float {
         lock.withLock {
-            let result = (peakLevel, chunks)
+            let l = peakLevel
             peakLevel = 0
+            return l
+        }
+    }
+
+    func drainChunks() -> [Data] {
+        lock.withLock {
+            let c = chunks
             chunks = []
-            return result
+            return c
         }
     }
 }

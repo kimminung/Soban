@@ -118,6 +118,56 @@
 - 열기 경로: 스튜디오 `fileImporter`(보안 범위 URL) 또는 `onOpenURL` → `AppModel.pendingImportURL` → 초안.
 - PLY: 헤더 파싱(binary LE/ascii, 속성 타입별 크기), `f_dc_*`(SH0 역변환) 또는 `red/green/blue`, `opacity`(logit→sigmoid), `scale_*`(log→exp 평균). 36k 초과 시 균등 추출. 키가 0.3~1.5 m 밖이면 0.8 m 로 정규화, 중심 원점. 카드 = 스플랫 직교 투영 소프트 디스크 렌더(800px) → `PersonaBuilder.detectRig` 로 눈·입 재검출(그림체 얼굴은 실패할 수 있어 UI 에 안내). "위아래 뒤집기" 는 원본 클라우드에서 재생성.
 
+### 5.2e 블렌더 USDZ 에셋 (`FaceRig/`, `FaceAssets/`, `BustAvatars.swift`)
+
+| 항목 | 구현 |
+|---|---|
+| 에셋 | Blender MCP 로 제작, `Docs/blender/Soban_FaceAssets.blend`(1차) → **`Soban_FaceAssets_ARKit52.blend`(2026-10-03, ARKit 52 셰이프키: 입 16·눈꺼풀 14·눈썹 5·Head jawOpen, Left=+X, 레거시 키 삭제, Blender 5.2 USD 내보내기)**. `DemoAvatar_{Ethan,Olivia,Lucas,Emma}.usdz`(각 4.8 MB), `SplatFace_Eyes_{Male,Female}`(눈알 2 + 눈꺼풀), `SplatFace_Mouth_{Male,Female}`(입술·치아·입안), `SplatPlaceholder_Bust`. 흉상 공간: y=0 가슴 절단면, 눈 y≈0.44(x=±0.032), 입 y≈0.357, 정수리 y≈0.566, 얼굴 +Z |
+| 블렌드셰이프 | 눈꺼풀 `Blink_L/R, EyeWide, Squint`, 눈썹 `BrowUp`, 입/턱 `JawOpen, A, I, U, E, O, Smile, Press`. `FaceRigSystem` 이 `BlendShapeWeightsComponent` 로 매 프레임 적용 — 깜빡임(빠르게 감고 천천히 뜸, 15% 더블 블링크), 음량→턱/모음 순환, 텍스트→`HangulViseme`(중성 모음 → A/E/O/U/I, 받침 ㅁㅂㅍ → Press), 시선 미세 움직임(`_Eye_L/_Eye_R` 엔티티 회전) |
+| 로딩 | `FaceAssetLoader` 가 `Entity(named:)` 로 프로토타입을 한 번만 읽고 `clone(recursive:)`. 동기화 폴더라 `Soban/FaceAssets/*.usdz` 가 자동으로 모든 플랫폼 번들에 들어간다 |
+| 데모 손님 | `DemoBustAvatar`: 흉상 ×1.25, 목 높이(0.33·s) 피벗으로 yaw/pitch/roll·이동, `FaceRigComponent.audioLevel = max(level, mouth)`, TTS 시작 시 `speak(text:duration:)` → 음절당 길이 = duration/음절수. 손·글로우·이름표·반응은 `AvatarDecor` 공용. 손님은 흉상 4종까지(`GatheringSession.maxDemoGuests`), 이름 에단/올리비아/루카스/엠마, 성별별 TTS 음높이 |
+| 얼굴 키트 | `PersonaAvatar.attachFaceKitIfNeeded()`: 리그 + `manifest.faceKit != "none"` 일 때(카드·스플랫 모두) 눈/입 USDZ 를 따로 로드. **6차 규칙** — `SobanFaceAssets.keepOnlyEyelids` 가 눈알 모델(`*_Eye_L/_Eye_R` 하위, 흰자·홍채·동공)을 `isEnabled = false` 로 숨기고 눈꺼풀(`*_Eyelids`, 이름에 lid/lash)만 남긴다. 눈 스케일: x = 리그 눈 간격 / 에셋 눈알 간격, y = 리그 눈 높이×1.6 / 에셋 눈꺼풀 높이(x 의 0.7–1.6배로 제한), z = 0.45·x. 위치는 **눈꺼풀 앞면**이 부조 표면 +1.5 mm 에 오도록(`lidBounds.max.z`). 입: x = 리그 입 폭 / 에셋 입 폭, z = 0.35·x, 입술 앞면 = 표면 +1 mm. 틴트는 이름이 아니라 **머티리얼 색**으로 고른다(`tintRGB`): 눈꺼풀은 밝은(피부) 머티리얼만, 입은 붉고 명도 0.45–0.8 인 입술 머티리얼만(측정값: 입술 (0.76,0.50,0.47), 잇몸 (0.53,0.35,0.33), 입 안 (0.18,0.05,0.06), 치아 (0.93,0.91,0.86)). 시선(`autoGaze`)은 눈알을 숨겼으므로 끈다. 2D 입/눈꺼풀 스프라이트는 끈다. `SOBAN_DUMP_KIT=1`(DEBUG) 로 계층·머티리얼 색을 `tmp/soban-kit-dump.txt` 에 덤프 |
+| 플레이스홀더 | `PlaceholderBustAvatar`: 페르소나 미도착 참가자 자리에 반투명(0.38–0.46 호흡) 흉상 |
+| 등록 | `SobanApp.init` / `SobanCompanionApp.init` 에서 `FaceRigComponent.registerComponent()`, `FaceRigSystem.registerSystem()` |
+
+### 5.2f 흉상 템플릿 입체화 · 머리카락 볼륨 (`BustTemplate`, `SplatBuilder` 6차)
+
+| 항목 | 구현 |
+|---|---|
+| 템플릿 | `BustTemplateLoader.load()`(메인 액터, 1회 캐시)가 `SplatPlaceholder_Bust.usdz` 의 `MeshResource.contents.models[].parts[]` 에서 `positions`/`triangleIndices` 를 읽어 흉상 루트 공간 삼각형으로 모으고, `@concurrent rasterize` 가 정면(+Z) 직교 z-버퍼 192×256 으로 굽는다(뒷면 삼각형 제외, 1회 구멍 메우기). 행별 실루엣 반폭·가장자리 z 를 7행 박스 평활로 저장(`edge(atY:)` 행 보간) — 행 양자화 띠 방지 |
+| 매핑 | 리그 눈 중심 ↔ 흉상 (0, 0.44), k = 0.064 / 리그 눈 간격(흉상 단위/m). `templateZ = (template.z(bustXY) − 뺨 기준 z) / k`, 뺨 기준 = (±0.045, 0.40) 평균 → 뺨 z≈0, 코끝만 살짝 +. 실루엣 밖(넓은 어깨·머리끝·정수리 위)은 `edge.z − 밖으로 나간 거리×0.8`. 우선순위: TrueDepth 깊이 → 템플릿 → 해석적 부조 |
+| 법선 | 템플릿 z 의 1 cm 유한차분. 측면 융합·경사 보정에 사용 |
+| 머리카락 | `isHair`: 목선 위 & (눈썹 윗선+5% 위 **또는** 윤곽 폭 92% 밖) & 색이 피부보다 머리카락색에 가깝거나 피부와 0.22 이상 다름. 돔 `hairDepth(=얼굴폭×0.14) × √(1−ex²) × 수직계수(0.25–1)` 를 z 에 더하고(깊이 맵 없을 때), 분류된 점을 한 겹 더 복제(지터 ±1셀, 앞으로 0.25–0.7·hairDepth, 명도 0.88–1.1, α×0.7, 크기×0.85) — `maxCount` 36k 안에서 |
+| 경사 보정 | 스플랫 크기 × min(3.2, 1/max(0.3, n.z)) — 옆을 보는 표면에서 격자 샘플이 z 로 늘어나 생기는 줄무늬 틈을 메움 |
+| 리그 확장 | `FaceRig.leftBrow/rightBrow`(Vision `leftEyebrow/rightEyebrow`), `contour`(`faceContour` 정규화 다각형), `hair`(이마 위 평균색). 모두 옵셔널(구 패키지 디코딩 호환). `PlaceholderPersona` 샘플도 같은 값을 채운다 |
+| 호출 | `SplatBuilder.build(from:template:progress:)`. Studio(초안/활성)·AppModel 런치 플래그·Companion 모두 `await BustTemplateLoader.load()` 결과를 넘긴다 → 세 플랫폼 결과가 같다 |
+| 왜 VLM 이 아닌가 | FoundationModels 는 이미지 입력을 받아도 픽셀 좌표를 안정적으로 내지 못한다. Vision 76점 랜드마크·인물 분리가 같은 온디바이스 ML 로 밀리초에 좌표를 준다. 의미 수준 판단(헤어스타일 등)이 필요해지면 VLM 을 보조로 붙일 수 있다(§9) |
+
+### 5.2g 템플릿 → 사진 변형 (`TemplateFit`, `ThinPlateSpline`) · 외형 힌트 (`AppearanceHints`) — 7차
+
+| 항목 | 구현 |
+|---|---|
+| TPS | `ThinPlateSpline(source:target:lambda:)`: 커널 r² log r², (n+3)² 시스템을 부분 피벗 가우스 소거로 풀고 λ=0.002 정규화. `map(p)` = 아핀 + Σ wᵢ U(‖p−sᵢ‖). 사진 좌표(카드 m) → 흉상 좌표 |
+| 대응점 | 눈 중심 2(±0.032, 0.44) · 눈썹 중심 2(±0.032, 0.462) · 코끝(0, `template.noseY`: x=0 에서 0.37–0.43 사이 z 최대 행) · 입 중심(0, 0.357) + 양끝(±0.025) · 얼굴 윤곽 ~12점(높이 비율 t = (눈y−y)/(눈y−턱y) → 흉상 by = 0.44 − t·(0.44 − `template.chinY`), bx = ±실루엣 반폭×(0.9+0.08t)). `chinY` 는 목(최소 반폭) 위에서 반폭이 1.25배 되는 첫 행 |
+| 행 맞춤 | `TemplateFit.rowFit`: 카드 160행마다 불투명 픽셀 범위 → (중심, 반폭). bx = u·흉상반폭·ratio, ratio = clamp(사진반폭·k / 흉상반폭, 0.6…1.6). by 는 눈 간격 아핀 |
+| 블렌딩 | 얼굴 박스 타원(1.1배) 정규화 거리 d: d≤1 TPS, d≥1.4 행 맞춤, 사이 smoothstep |
+| 우선순위 | 깊이 맵 → `templateZ(fit.map)` → 실루엣 밖 가장자리 기울임 → 해석적 부조 |
+| 외형 힌트 | `AppearanceAnalyzer.analyze(image:rig:)`: `SystemLanguageModel.default.availability == .available` 이고 OS 27 이면 `LanguageModelSession.respond(generating: AppearanceReport.self) { 텍스트; Attachment(cgImage 512px) }`(8초 타임아웃, 실패 시 nil) → 아니면 `heuristic` (턱 아래 양옆 머리카락색 → long, 턱 옆 → medium; 이마 중앙 머리카락색 → 앞머리; 머리 위 폭/얼굴 폭 → 볼륨; 하단 폭/얼굴 폭 1.6 → 어깨). `hairDepthScale` 0.7/1/1.4, `hairReachBelowNeck` 0.04/0.14/0.38(카드 높이 비율), 앞머리면 이마 중앙 60% 폭은 눈썹선 아래 10% 까지 머리카락 허용. `PersonaManifest.appearance` 에 저장 |
+| 왜 좌표는 안 맡기나 | 언어 모델은 픽셀 좌표를 안정적으로 내지 못한다(실측: 만화 샘플에 "어깨 안 보임" 같은 오판도 있음). 좌표·윤곽은 Vision 76점, 모델은 분류 힌트만 |
+
+### 5.2h ARKit 52 표정 표준 · 네이티브 스플랫 · 턱 변형 — 8차
+
+| 항목 | 구현 |
+|---|---|
+| `ArkitShape` / `ArkitWeights` | ARKit `BlendShapeLocation` 과 같은 52개 rawValue. `ArkitWeights` 는 `[Float]` 52개 값 타입(Codable·Hashable) — 컴포넌트·네트워크 그대로 사용. `ArkitWeights(named:)` 로 ARFaceAnchor/MediaPipe 사전에서 생성 |
+| 비셈 프리셋 | A = jawOpen .6 + mouthLowerDownL/R .3 · I = jawOpen .15 + mouthStretchL/R .5 + mouthSmileL/R .2 · U = mouthPucker .8 + mouthFunnel .3 + jawOpen .1 · E = jawOpen .3 + mouthStretchL/R .4 · O = jawOpen .35 + mouthFunnel .7 + mouthPucker .3 · press = mouthPressL/R .8 + mouthClose .6 |
+| `ShapeNameAdapter` | 메시 셰이프키 이름에 `jawOpen`/`eyeBlinkLeft`/`mouthSmileLeft` 가 있으면 ARKit 에셋 → `arkit.named` 직통. 아니면 레거시 13개로 축약(좌우 분리 셰이프는 max): Blink_L/R, EyeWide, Squint, BrowUp, Smile, Press. 비셈 합성 경로는 레거시 A/I/U/E/O/Press 셰이프를 직접 쓰고 JawOpen 은 ARKit 의 40%만; 외부 ARKit 신호만 있을 때는 U=pucker, O=funnel·(1−pucker), I=stretch·(1−jaw), A=lowerDown·jaw 로 근사 |
+| `FaceRigSystem` 8차 | ① `externalWeights` 있으면 합성 생략(깜빡임은 `externalIncludesBlink` 일 때만 끔) ② RMS → `open` 은 엔벨로프: 큐 비셈 amount = sin(πt)·max(.5, .5+open)·.95 ③ 코아티큘레이션: 첫 50 ms 직전 비셈과 크로스페이드, 마지막 40 ms 다음 비셈 50% 선행 ④ `HangulViseme` 초성 ㅁ(6)·ㅂ(7)·ㅃ(8)·ㅍ(17) → `.press` 70 ms 선행 ⑤ 스무딩 후 어댑터 → `BlendShapeWeightsComponent`. `lastNamingDescription` 으로 UI 에 "ARKit 52 직통 / 레거시 → 어댑터" 표시 |
+| 외부 신호 소스 | `FaceMouthTracker.weights`(iOS ARKit 52 전체) · `CameraCaptureController.faceWeights`(Vision 76점: jawOpen=입술 높이, eyeBlink=눈 높이/폭 .32→.14, mouthSmile=입꼬리 들림, mouthPucker=입폭/얼굴폭 <.34, mouthStretch >.46, browInnerUp=눈썹–눈 간격) → `PersonaPreviewView.expressionSource` → `TableAvatar.setExpression(_:includesBlink:)` → `rig.externalWeights` |
+| 네이티브 스플랫 (`SplatMesh.makeNative`) | `LowLevelBuffer(descriptor: .init(capacity:sizeMultiple:16))` 에 스플랫당 14 float 인터리브: pos3 · scale3(σ=0.7·scale, z 0.3배 원반) · rot4(1,0,0,0) · opacity(a/255) · SH0 3((rgb−0.5)/0.2821). `BufferDescriptor(buffer:format:stride:offset:)` 5개 → `BufferResource(count:…sphericalHarmonics:(sh,.zero))` → `GaussianSplatResource`(activation identity) → `GaussianSplatComponent`. 실패(상한·GPU)·시뮬레이터(`#if !targetEnvironment(simulator)`, SDK 에 심볼 없음)·`quadsplats` → 쿼드 아틀라스 |
+| `SplatJawDeformer` | 리그에서 윗입술(입 중심+입높이·0.2) ~ 턱(얼굴 박스 아래) 사이, 폭 95% 안, z>−8 cm 인 스플랫을 골라 가중치 smoothstep(t)·(1−측면²). jawOpen v → 축 (입x, 눈y−(눈y−입y)·.25, −0.06) 둘레로 −v·0.22 rad 회전, `buffer.withUnsafeMutableBytes` 로 위치만 재기록(변화 0.008 이상일 때). 키트 `rig.audioLevel`/`externalWeights.jawOpen` 과 같은 값 |
+| 입 안 컬링 | `SplatBuilder`: faceKit 사용 시 입 중심 타원(반폭 = 입폭/1.24·.42, 반높이 = 입높이·.22) 안 d<0.6 제거, 0.6–1 알파 페더 |
+
 ### 5.3 아바타 렌더링 (`PersonaAvatar`)
 
 - 카드 크기: 높이 `cardHeightMeters`(기본 0.8 m) × 이미지 비율.
@@ -240,6 +290,29 @@
 | 1 | 컴패니언: 다각도 촬영 → 가우시안 스플랫 → Vision Pro 전송/감상 | §5.2c. 촬영 직후 자동 생성, 카드/입체 토글 + 턴테이블 미리보기, 3DGS PLY `ShareLink`, "스플랫 포함 보내기"/"사진만 보내기" |
 | 2 | Vision Pro: 스플랫 수신 또는 사진만 받아 직접 생성 → 초안 → 저장 즉시 사용 | 다중 리소스 조립, 초안 모델(`StudioModel.setDraft`), 스플랫 미존재 시 자동 생성, 저장 → `activeID` + `refreshLocalPersona()` |
 | 3 | 입 모양: 레벨미터, 내부 센서 가능 시 사용·불가 시 마이크 + 권한, 컴패니언에도 | §5.4b. Vision Pro 는 불가 사유 표시 후 마이크, iPhone/iPad TrueDepth, Mac 입술 랜드마크, `VoiceLevelBar`, 권한 상태·허용 버튼 |
+
+## 8d. 5차 — 블렌더 에셋 교체 (2026-10-02)
+
+사용자가 Blender MCP 로 만든 USDZ 9종과 `FaceRig.swift`/`SobanFaceAssets.swift` 를 전달 → §5.2e 로 통합. 2D 만화 데모 손님 → USDZ 흉상 4명, 스플랫 페르소나의 2D 입/눈꺼풀 → USDZ 얼굴 키트, 미도착 자리 → 플레이스홀더 흉상. 프로젝트 이동(`Desktop/Soban`) 후 남아 있던 `INFOPLIST_FILE = MyApp/Info.plist` 도 `Soban/Info.plist` 로 고쳐 빌드를 복구했다. 시뮬레이터 검증: 흉상 4명 + 이름표 + 반응, 거울/스튜디오의 얼굴 키트 정렬.
+
+## 8e. 6차 — 키트 일체감 · 흉상 템플릿 · 컴패니언 미리보기 (2026-10-02)
+
+실기기 사진 4장: 실제 사진 스플랫 위에 USDZ 눈알(흰자·홍채)과 입술이 얼굴 앞으로 떠 있었고, iPhone 미리보기는 엔티티가 작고 여백이 컸다. 조치: §5.2e 얼굴 키트 규칙(눈꺼풀만·납작·앞면 기준 z·색 기반 틴트·카드에도 부착), §5.2f 흉상 템플릿 + 머리카락 볼륨 + 경사 보정, `PersonaPreviewView` 의 iOS/macOS 전용 `PerspectiveCamera`(FOV 36°, 카드 높이×1.12 가 보이는 거리, 아바타 실제 크기). 시뮬레이터 검증: 샘플 입체에서 눈알 사라짐·눈꺼풀 깜빡임 프레임 포착(연속 24장 시트)·입술 틴트, Mac 소반 캡처(`sample` DEBUG 인자) 미리보기가 프레임을 채움, 두레반 흉상 손님·거울 정상. 4개 빌드(visionOS 기기/시뮬, iOS 시뮬, macOS) 통과. 남은 확인: 실제 사진 스플랫에서 눈꺼풀 세로 스케일·입술 폭이 자연스러운지(실기기).
+
+## 8f. 7차 — 템플릿 변형 · 외형 힌트 · 흉상 샘플 · 상태 유지 (2026-10-02)
+
+사용자 질문("온디바이스 파운데이션 모델만으로는 사진을 늘이고 줄여 얼굴 모양 투명 엔티티에 맞추는 게 무리인가?")에 대한 답: 좌표/변형은 언어 모델의 일이 아니라 결정적 기하라서 §5.2g 로 구현했다. 변경: `TemplateFit`/`ThinPlateSpline`(새 파일), `SplatBuilder.build(from:template:hints:)`, `AppearanceHints`/`AppearanceAnalyzer`(FoundationModels + 휴리스틱), 부조 96×128, `PersonaManifest.demoAvatar/appearance`, `PlaceholderPersona.makeDemoBust/randomDemoBust`, `PreviewHolder`·`TableRenderer`(거울 포함)가 `DemoBustAvatar` 로 흉상 샘플 렌더, 데모 손님은 내 흉상과 겹치지 않게 선택, 스튜디오 2단계는 흉상이면 건너뜀. 상태 유지: `AppModel.studio`(StudioModel 을 앱이 소유) + `CompanionModel`(앱이 소유, `@Bindable` 로 뷰에 주입) — Combine `PassthroughSubject.debounce.sink` 로 UserDefaults/`.sobanpersona` 저장·복원. 첫 실행에서 백그라운드 스플랫 생성이 끝나도 스튜디오가 카드로 남던 레이스(`activeSplats` 가 id 로만 갱신) → `splatCount` 도 키에 포함. 검증: 시뮬레이터(흉상 샘플 스튜디오·거울·상, TPS 턴테이블), Mac(Apple Intelligence 힌트 실제 응답, 재실행 복원), 4개 빌드 통과. 프로젝트 가이드라인은 Combine 대신 async/await 를 권하지만 사용자가 명시적으로 Combine 적용을 요청해 저장 파이프라인에 한정해 썼다.
+
+## 8g. 8차 — 조사 문서의 단기 로드맵 구현 (2026-10-02)
+
+사용자가 전달한 조사 문서(LAM·RealityKit 27 스플랫·ARKit 52·립싱크·MediaPipe·SpeechAnalyzer)에서 **로컬에서 바로 되는 것**을 골랐다: §5.2h. 블렌더 USDZ 는 그대로 필수(ARKit 52 재내보내기는 `Docs/blender/ARKit52-요청.md` 로 요청). 검증: 시뮬레이터(쿼드 폴백) 두레반에서 흉상 4명 비셈 변화·깜빡임 정상, macOS 27 에서 네이티브 `GaussianSplatComponent` 렌더(아래 캡처), 4개 빌드 통과. 발견: xrsimulator/iphonesimulator 27.0 SDK 의 RealityFoundation 에는 `GaussianSplatResource` 가 없다(기기·macOS SDK 에만) → 시뮬레이터는 쿼드. 보류: MediaPipe(외부 의존), LAM/Audio2Face(CUDA), SpeechAnalyzer(visionOS 가용성 미확인), SharePlay 가중치 스트림(Vision Pro 표정 소스 없음).
+
+## 8h. 9차 — 실기기 피드백 4건 (2026-10-03)
+
+1. 홈 카드 ≠ 스튜디오: 홈은 `body.png` 썸네일, 스튜디오는 3D 미리보기였다 → 홈도 `PersonaPreviewView`(`previewScale` 0.26) 로 같은 흉상/스플랫/키트를 보여 준다.
+2. 스튜디오 레벨미터 0: `VoiceEngine.level` 은 `GatheringSession.tick()`(상이 펼쳐졌을 때만 30Hz)에서만 갱신됐다 → 캡처 중에는 엔진이 자체 `levelTask` 로 갱신, 틱은 청크만 가져간다(`drainCapture`).
+3. 입 모양 예시 TTS: `StudioView.runFakeTalk` 가 `BotSpeech.render` 로 문장을 렌더해 정면(0,1.2,−0.7)에서 재생하고 엔벨로프로 레벨, `StudioModel.speechRequest` → `PersonaPreviewView.speech` → `TableAvatar.speak` 로 비셈 큐. 오디오 없으면 사인파 + 비셈.
+4. 상에서 마이크 불능·토글 무반응(추정 원인: 이머시브 진입 시 오디오 라우트/구성 변경으로 엔진이 조용히 멈추고 플래그만 남음; 또는 TTS 가 출력 전용으로 먼저 켠 엔진을 입력 포함으로 재시작하다 실패): 권한이 있으면 엔진을 **항상 입력 포함**으로 시작, `AVAudioEngineConfigurationChange`/인터럽션 종료 시 엔진·탭 재구성, `startCapture` 가 `engine.isRunning` 실제값으로 플래그를 바로잡음, 모임 설정에 레벨미터·`statusText`·"마이크 허용 요청 · 다시 연결" 버튼. 실기기 확인 필요(T-1205).
 
 ## 9. 알려진 한계와 다음 단계
 

@@ -20,3 +20,7 @@ xcuserdata/
 
 # Local tooling
 /tmp/
+
+# Blender 백업 파일
+*.blend1
+*.blend2

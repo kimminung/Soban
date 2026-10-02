@@ -12,6 +12,8 @@ final class FaceMouthTracker: NSObject, ARSessionDelegate {
     private let session = ARSession()
     private(set) var isRunning = false
     private(set) var level: Float = 0
+    /// 8차: ARKit 52 블렌드셰이프 전체 (눈 깜빡임 포함) — 미리보기 키트/흉상을 직접 구동한다.
+    private(set) var weights = ArkitWeights()
     private(set) var faceVisible = false
     private(set) var errorText: String?
 
@@ -34,6 +36,7 @@ final class FaceMouthTracker: NSObject, ARSessionDelegate {
         session.pause()
         isRunning = false
         level = 0
+        weights = ArkitWeights()
         faceVisible = false
     }
 
@@ -43,8 +46,13 @@ final class FaceMouthTracker: NSObject, ARSessionDelegate {
         let funnel = face.blendShapes[.mouthFunnel]?.floatValue ?? 0
         let open = min(1, max(0, jaw * 1.6 + funnel * 0.4))
         let tracked = face.isTracked
+        var w = ArkitWeights()
+        for (loc, num) in face.blendShapes {
+            if let shape = ArkitShape(rawValue: loc.rawValue) { w[shape] = num.floatValue }
+        }
         Task { @MainActor in
             self.level = open
+            self.weights = w
             self.faceVisible = tracked
         }
     }
