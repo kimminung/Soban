@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="560" viewBox="0 0 1200 560" font-family="-apple-system, 'Apple SD Gothic Neo', Helvetica, Arial, sans-serif">
+  <defs>
+    <style>
+      .t { font-size: 15px; fill: #2b2420; }
+      .h { font-size: 18px; font-weight: 700; fill: #2b2420; }
+      .s { font-size: 13px; fill: #6b5f58; }
+      .box { rx: 14; ry: 14; stroke-width: 1.5; fill: #fff; }
+      .arrow { stroke: #8a7a70; stroke-width: 2; fill: none; marker-end: url(#m); }
+    </style>
+    <marker id="m" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#8a7a70"/></marker>
+  </defs>
+  <rect width="1200" height="560" fill="#faf6ef"/>
+  <text x="40" y="48" class="h" font-size="26">페르소나 캡처 파이프라인 · 사진 한 장 → 살아 움직이는 카드</text>
+  <text x="40" y="74" class="s">PersonaBuilder.build(from:name:) — @concurrent, 전부 온디바이스. visionOS 는 서드파티 카메라 접근이 없으므로 사진 보관함에서 가져온다.</text>
+
+  <!-- Row 1 -->
+  <rect x="40" y="110" width="200" height="110" stroke="#334C85" class="box"/>
+  <text x="52" y="136" class="h">① 입력</text><text x="52" y="160" class="t">PhotosPicker · Data</text><text x="52" y="180" class="s">CGImageSource 썸네일</text><text x="52" y="198" class="s">긴 변 1024px · EXIF 회전 적용</text>
+
+  <path d="M240 165 L275 165" class="arrow"/>
+  <rect x="280" y="110" width="220" height="110" stroke="#52856B" class="box"/>
+  <text x="292" y="136" class="h">② 인물 분리</text><text x="292" y="160" class="t">GeneratePersonInstanceMaskRequest</text><text x="292" y="180" class="s">실패 시 ForegroundInstanceMask</text><text x="292" y="198" class="s">generateMaskedImage → RGBA 버퍼</text>
+
+  <path d="M500 165 L535 165" class="arrow"/>
+  <rect x="540" y="110" width="220" height="110" stroke="#52856B" class="box"/>
+  <text x="552" y="136" class="h">③ 얼굴 리그</text><text x="552" y="160" class="t">DetectFaceLandmarksRequest</text><text x="552" y="180" class="s">가장 큰 얼굴 1개</text><text x="552" y="198" class="s">leftEye · rightEye · outerLips · nose</text>
+
+  <path d="M760 165 L795 165" class="arrow"/>
+  <rect x="800" y="110" width="200" height="110" stroke="#BD7538" class="box"/>
+  <text x="812" y="136" class="h">④ 카드 다듬기</text><text x="812" y="160" class="t">RGBARaster</text><text x="812" y="180" class="s">알파 바운딩 박스 + 4% 여백</text><text x="812" y="198" class="s">피부·입술·의상 평균색</text>
+
+  <path d="M1000 165 L1035 165" class="arrow"/>
+  <rect x="1040" y="110" width="120" height="110" stroke="#8F4D6B" class="box"/>
+  <text x="1052" y="136" class="h">⑤ 패키지</text><text x="1052" y="160" class="t">manifest.json</text><text x="1052" y="180" class="t">body.png</text><text x="1052" y="198" class="s">≤ 1024px RGBA</text>
+
+  <!-- Manifest detail -->
+  <rect x="40" y="260" width="520" height="260" stroke="#8F4D6B" class="box"/>
+  <text x="52" y="288" class="h">PersonaManifest (정규화 좌표, 좌상단 원점)</text>
+  <text x="52" y="316" class="t" font-family="Menlo, monospace" font-size="13">id · name · kind(photo|placeholder) · createdAt</text>
+  <text x="52" y="338" class="t" font-family="Menlo, monospace" font-size="13">imageWidth · imageHeight · cardHeightMeters(0.8) · mouthStrength</text>
+  <text x="52" y="360" class="t" font-family="Menlo, monospace" font-size="13">accent: RGB  (의상 평균색 → 손·글로우 색)</text>
+  <text x="52" y="382" class="t" font-family="Menlo, monospace" font-size="13">face?: FaceRig {</text>
+  <text x="72" y="404" class="t" font-family="Menlo, monospace" font-size="13">faceBox, leftEye, rightEye, mouth : NRect</text>
+  <text x="72" y="426" class="t" font-family="Menlo, monospace" font-size="13">noseTip : NPoint   skin, lip : RGB</text>
+  <text x="52" y="448" class="t" font-family="Menlo, monospace" font-size="13">}</text>
+  <text x="52" y="480" class="s">face 가 nil 이면 눈/입 레이어는 생성하지 않고 고개 움직임만 전달한다.</text>
+  <text x="52" y="500" class="s">같은 매니페스트 + PNG 가 네트워크로 그대로 전송된다 (hello 메시지 + sendResource).</text>
+
+  <!-- Avatar layers -->
+  <rect x="600" y="260" width="560" height="260" stroke="#52856B" class="box"/>
+  <text x="612" y="288" class="h">PersonaAvatar 레이어 (앞 → 뒤, z 오프셋 mm 단위)</text>
+  <g font-size="14" fill="#2b2420">
+    <rect x="612" y="304" width="14" height="14" fill="#BD7538" opacity=".6"/><text x="634" y="316">손 2개 — 반투명 구, 머리 기준 상대 좌표 (x 오른쪽, y 위, z 뒤 → 카드 +z 앞)</text>
+    <rect x="612" y="330" width="14" height="14" fill="#e8c9b6"/><text x="634" y="342">눈꺼풀 2개 — 피부색 타원, 2.2–5.5초마다 scale.y 0→1→0</text>
+    <rect x="612" y="356" width="14" height="14" fill="#3a1b1d"/><text x="634" y="368">벌어진 입 — 입술색 테두리 + 어두운 안쪽 + 윗니, scale.y = 음성 레벨</text>
+    <rect x="612" y="382" width="14" height="14" fill="#8fb3d9"/><text x="634" y="394">몸통 카드 — body.png, UnlitMaterial 알파 블렌딩, 피벗 = 얼굴 중심</text>
+    <rect x="612" y="408" width="14" height="14" fill="#555" opacity=".4"/><text x="634" y="420">그림자 카드 — 같은 텍스처, 35% 검정, 1.2cm 오프셋</text>
+    <rect x="612" y="434" width="14" height="14" fill="#BD7538" opacity=".3"/><text x="634" y="446">바닥 글로우 — 방석 위 부드러운 디스크, 말할 때 밝아짐</text>
+    <rect x="612" y="460" width="14" height="14" fill="#fff" stroke="#999"/><text x="634" y="472">이름표 · 반응 말풍선 — ViewAttachmentComponent(SwiftUI glass)</text>
+  </g>
+  <text x="612" y="504" class="s">카드 전체는 뷰어를 향해 yaw 빌보딩 → 종이 인형이 항상 정면으로 보인다.</text>
+</svg>

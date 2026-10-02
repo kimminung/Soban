@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" font-family="-apple-system, 'Apple SD Gothic Neo', Helvetica, Arial, sans-serif">
+  <defs>
+    <style>
+      .t { font-size: 14px; fill: #2b2420; }
+      .h { font-size: 18px; font-weight: 700; fill: #2b2420; }
+      .s { font-size: 12px; fill: #6b5f58; }
+      .life { stroke: #c9bdb3; stroke-width: 2; stroke-dasharray: 6 5; }
+      .msg { stroke: #334C85; stroke-width: 2; fill: none; marker-end: url(#m); }
+      .msgu { stroke: #BD7538; stroke-width: 2; fill: none; stroke-dasharray: 5 4; marker-end: url(#mu); }
+      .res { stroke: #52856B; stroke-width: 3; fill: none; marker-end: url(#mg); }
+    </style>
+    <marker id="m" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#334C85"/></marker>
+    <marker id="mu" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#BD7538"/></marker>
+    <marker id="mg" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#52856B"/></marker>
+  </defs>
+  <rect width="1200" height="720" fill="#faf6ef"/>
+  <text x="40" y="44" class="h" font-size="26">모임 세션 흐름 · 호스트 / 손님 (MultipeerConnectivity 풀 메시)</text>
+  <text x="40" y="68" class="s">실선 = reliable, 점선 = unreliable(15Hz 포즈 · 60ms 음성), 굵은 초록 = sendResource(PNG). 좌석표는 호스트만 보낸다.</text>
+
+  <!-- lifelines -->
+  <g>
+    <rect x="80" y="90" width="200" height="44" rx="12" fill="#eef1f8" stroke="#334C85"/><text x="100" y="117" class="t" font-weight="700">호스트 A (Vision Pro)</text>
+    <rect x="500" y="90" width="200" height="44" rx="12" fill="#fbf1e6" stroke="#BD7538"/><text x="520" y="117" class="t" font-weight="700">손님 B (Vision Pro)</text>
+    <rect x="920" y="90" width="200" height="44" rx="12" fill="#edf5f0" stroke="#52856B"/><text x="940" y="117" class="t" font-weight="700">손님 C (Vision Pro)</text>
+    <line x1="180" y1="134" x2="180" y2="690" class="life"/>
+    <line x1="600" y1="134" x2="600" y2="690" class="life"/>
+    <line x1="1020" y1="134" x2="1020" y2="690" class="life"/>
+  </g>
+
+  <!-- discovery -->
+  <text x="190" y="160" class="s">startHosting: MCNearbyServiceAdvertiser(room, host)</text>
+  <text x="610" y="160" class="s">startBrowsing: MCNearbyServiceBrowser</text>
+  <path d="M600 185 L190 185" class="msg"/><text x="330" y="178" class="t">invitePeer (B → A 세션 초대)</text>
+  <path d="M190 215 L600 215" class="msg"/><text x="330" y="208" class="t">accept (좌석 &lt; 6 이면 수락)</text>
+
+  <!-- identity exchange -->
+  <rect x="60" y="235" width="1100" height="24" fill="#f1ebe3"/><text x="70" y="252" class="s">connected(B) — 양쪽 모두 sendIdentity</text>
+  <path d="M190 280 L600 280" class="msg"/><text x="300" y="273" class="t">hello(ParticipantInfo, PersonaManifest)</text>
+  <path d="M190 305 L600 305" class="res"/><text x="300" y="298" class="t">persona-&lt;id&gt;.png (sendResource)</text>
+  <path d="M600 335 L190 335" class="msg"/><text x="300" y="328" class="t">hello(B)</text>
+  <path d="M600 360 L190 360" class="res"/><text x="300" y="353" class="t">persona-&lt;id&gt;.png</text>
+  <path d="M190 390 L600 390" class="msg"/><text x="260" y="383" class="t">roster([A:0, B:1], hostID) — 호스트가 빈 좌석 중 가장 낮은 번호 배정</text>
+
+  <!-- C joins -->
+  <rect x="60" y="410" width="1100" height="24" fill="#f1ebe3"/><text x="70" y="427" class="s">C 가 A 를 초대 → MCSession 풀 메시로 B–C 도 직접 연결됨 → hello/PNG 는 모든 쌍이 교환</text>
+  <path d="M1020 455 L190 455" class="msg"/><text x="560" y="448" class="t">hello(C) + PNG</text>
+  <path d="M1020 480 L610 480" class="msg"/><text x="760" y="473" class="t">hello(C) + PNG</text>
+  <path d="M190 510 L1020 510" class="msg"/><text x="480" y="503" class="t">roster([A:0, B:1, C:2]) — 전원에게</text>
+
+  <!-- live -->
+  <rect x="60" y="530" width="1100" height="24" fill="#f1ebe3"/><text x="70" y="547" class="s">라이브 — 각 피어가 30Hz 틱에서 포즈(15Hz)·음성(60ms 청크)을 모든 피어에 브로드캐스트</text>
+  <path d="M190 575 L600 575" class="msgu"/><path d="M190 575 L1020 575" class="msgu"/><text x="250" y="568" class="t">pose(id, yaw/pitch/roll/offset/mouth/hands)</text>
+  <path d="M600 600 L190 600" class="msgu"/><path d="M600 600 L1020 600" class="msgu"/><text x="640" y="593" class="t">voice(id, seq, PCM16 16kHz)</text>
+  <path d="M1020 625 L190 625" class="msg"/><text x="560" y="618" class="t">reaction(id, 🍵)</text>
+
+  <!-- leave -->
+  <path d="M600 660 L190 660" class="msg"/><path d="M600 660 L1020 660" class="msg"/><text x="640" y="653" class="t">bye(B) · disconnect → 호스트 roster 재전송</text>
+  <text x="60" y="690" class="s">렌더링: 각 기기는 slot = (seat − mySeat) mod 6 으로 회전시켜 "나"를 항상 가까운 자리(슬롯 0)에 둔다. 호스트가 나가면 모두 idle 로 돌아간다.</text>
+</svg>

@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" font-family="-apple-system, 'Apple SD Gothic Neo', Helvetica, Arial, sans-serif">
+  <defs>
+    <style>
+      .t { font-size: 15px; fill: #2b2420; }
+      .h { font-size: 20px; font-weight: 700; fill: #2b2420; }
+      .s { font-size: 13px; fill: #6b5f58; }
+      .box { rx: 14; ry: 14; stroke-width: 1.5; }
+      .arrow { stroke: #8a7a70; stroke-width: 2; fill: none; marker-end: url(#m); }
+    </style>
+    <marker id="m" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#8a7a70"/></marker>
+  </defs>
+  <rect width="1200" height="720" fill="#faf6ef"/>
+  <text x="40" y="48" class="h" font-size="26">소반 (Soban) · 아키텍처 레이어</text>
+  <text x="40" y="74" class="s">visionOS 27 · SwiftUI + RealityKit · 개인 팀에서 SharePlay 대신 로컬 네트워크 P2P</text>
+
+  <!-- Layer 1: UI -->
+  <rect x="40" y="100" width="1120" height="110" fill="#eef1f8" stroke="#334C85" class="box"/>
+  <text x="60" y="128" class="h">1 · 창 (WindowGroup) &amp; 이머시브 공간 (.mixed)</text>
+  <rect x="60" y="145" width="200" height="48" fill="#fff" stroke="#334C85" class="box"/><text x="70" y="166" class="t">HomeView</text><text x="70" y="184" class="s">상태 · 빠른 실행</text>
+  <rect x="280" y="145" width="220" height="48" fill="#fff" stroke="#334C85" class="box"/><text x="290" y="166" class="t">StudioView</text><text x="290" y="184" class="s">사진→분석→다듬기→저장</text>
+  <rect x="520" y="145" width="220" height="48" fill="#fff" stroke="#334C85" class="box"/><text x="530" y="166" class="t">GatheringView</text><text x="530" y="184" class="s">호스트/참여/자리/반응/설정</text>
+  <rect x="760" y="145" width="180" height="48" fill="#fff" stroke="#334C85" class="box"/><text x="770" y="166" class="t">PersonaPreviewView</text><text x="770" y="184" class="s">창 안 RealityView</text>
+  <rect x="960" y="145" width="180" height="48" fill="#fff" stroke="#334C85" class="box"/><text x="970" y="166" class="t">TableImmersiveView</text><text x="970" y="184" class="s">RealityView · 바닥 원점</text>
+
+  <!-- Layer 2: Domain -->
+  <rect x="40" y="240" width="1120" height="150" fill="#fbf1e6" stroke="#BD7538" class="box"/>
+  <text x="60" y="268" class="h">2 · 상태 &amp; 도메인 (@Observable, MainActor)</text>
+  <rect x="60" y="285" width="200" height="88" fill="#fff" stroke="#BD7538" class="box"/><text x="70" y="306" class="t">AppModel</text><text x="70" y="324" class="s">탭 · 이머시브 상태</text><text x="70" y="342" class="s">LaunchOptions(DEBUG)</text>
+  <rect x="280" y="285" width="240" height="88" fill="#fff" stroke="#BD7538" class="box"/><text x="290" y="306" class="t">PersonaStore</text><text x="290" y="324" class="s">Documents/Personas/&lt;id&gt;/</text><text x="290" y="342" class="s">manifest.json + body.png</text><text x="290" y="360" class="s">활성 페르소나 · 이미지 캐시</text>
+  <rect x="540" y="285" width="300" height="88" fill="#fff" stroke="#BD7538" class="box"/><text x="550" y="306" class="t">GatheringSession</text><text x="550" y="324" class="s">모드: idle·solo·hosting·browsing·joined</text><text x="550" y="342" class="s">참가자/좌석표(호스트 권위) · 30Hz 틱</text><text x="550" y="360" class="s">데모 손님(BotBrain) · 반응 큐</text>
+  <rect x="860" y="285" width="280" height="88" fill="#fff" stroke="#BD7538" class="box"/><text x="870" y="306" class="t">TableRenderer</text><text x="870" y="324" class="s">TableLayout(6석 링) · TableScene</text><text x="870" y="342" class="s">PersonaAvatar 생성/동기화</text><text x="870" y="360" class="s">뷰어 방향 yaw 빌보딩</text>
+
+  <!-- Layer 3: Engines -->
+  <rect x="40" y="420" width="1120" height="150" fill="#edf5f0" stroke="#52856B" class="box"/>
+  <text x="60" y="448" class="h">3 · 엔진</text>
+  <rect x="60" y="465" width="250" height="88" fill="#fff" stroke="#52856B" class="box"/><text x="70" y="486" class="t">PersonaBuilder (Vision)</text><text x="70" y="504" class="s">GeneratePersonInstanceMaskRequest</text><text x="70" y="522" class="s">DetectFaceLandmarksRequest</text><text x="70" y="540" class="s">RGBARaster 크롭/색 샘플</text>
+  <rect x="330" y="465" width="250" height="88" fill="#fff" stroke="#52856B" class="box"/><text x="340" y="486" class="t">PersonaAvatar (RealityKit)</text><text x="340" y="504" class="s">카드·그림자·입·눈꺼풀·손·글로우</text><text x="340" y="522" class="s">ViewAttachmentComponent 이름표</text><text x="340" y="540" class="s">PersonaPose 블렌딩 · 호흡 · 깜빡임</text>
+  <rect x="600" y="465" width="250" height="88" fill="#fff" stroke="#52856B" class="box"/><text x="610" y="486" class="t">HeadHandTracker (ARKit)</text><text x="610" y="504" class="s">WorldTrackingProvider.deviceAnchor</text><text x="610" y="522" class="s">HandTrackingProvider 손목</text><text x="610" y="540" class="s">정면 캘리브레이션 → PersonaPose</text>
+  <rect x="870" y="465" width="270" height="88" fill="#fff" stroke="#52856B" class="box"/><text x="880" y="486" class="t">VoiceEngine (AVFAudio)</text><text x="880" y="504" class="s">installAudioTap → 16kHz Int16 60ms</text><text x="880" y="522" class="s">AVAudioEnvironmentNode 공간 재생</text><text x="880" y="540" class="s">RMS → 입 벌림</text>
+
+  <!-- Layer 4: Transport -->
+  <rect x="40" y="600" width="1120" height="90" fill="#f6eef3" stroke="#8F4D6B" class="box"/>
+  <text x="60" y="628" class="h">4 · 전송</text>
+  <rect x="60" y="642" width="330" height="38" fill="#fff" stroke="#8F4D6B" class="box"/><text x="70" y="666" class="t">SessionTransport 프로토콜 · PeerHandle · TransportEvent</text>
+  <rect x="410" y="642" width="360" height="38" fill="#fff" stroke="#8F4D6B" class="box"/><text x="420" y="666" class="t">MultipeerTransport (v1, 풀 메시, visionOS 27 deprecated)</text>
+  <rect x="790" y="642" width="350" height="38" fill="#fff" stroke="#8F4D6B" stroke-dasharray="6 4" class="box"/><text x="800" y="666" class="t">NetworkTransport (v2 예정 · NWListener/NWBrowser)</text>
+</svg>

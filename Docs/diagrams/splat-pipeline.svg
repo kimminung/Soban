@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="-apple-system, 'Apple SD Gothic Neo', Helvetica, Arial, sans-serif">
+  <defs>
+    <style>
+      .t { font-size: 14px; fill: #2b2420; }
+      .h { font-size: 18px; font-weight: 700; fill: #2b2420; }
+      .s { font-size: 12px; fill: #6b5f58; }
+      .box { rx: 14; ry: 14; stroke-width: 1.5; fill: #fff; }
+      .arrow { stroke: #8a7a70; stroke-width: 2; fill: none; marker-end: url(#m); }
+    </style>
+    <marker id="m" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#8a7a70"/></marker>
+  </defs>
+  <rect width="1200" height="600" fill="#faf6ef"/>
+  <text x="40" y="44" class="h" font-size="26">가우시안 스플랫 파이프라인 · SplatBuilder → SplatMesh</text>
+  <text x="40" y="68" class="s">깊이/부조 초기화형 3D 가우시안 스플랫. 미분 가능 최적화(학습)는 하지 않는다(Apple 공개 API 없음). 같은 코드가 iPhone/iPad/Mac/Vision Pro 에서 돈다.</text>
+
+  <rect x="40" y="100" width="210" height="120" stroke="#334C85" class="box"/>
+  <text x="52" y="126" class="h" font-size="16">입력</text>
+  <text x="52" y="150" class="t">body.png (투명 카드)</text>
+  <text x="52" y="170" class="t">FaceRig (눈·입·얼굴 박스)</text>
+  <text x="52" y="190" class="t">depth.png + near/far (선택)</text>
+  <text x="52" y="210" class="t">side-*.png (선택)</text>
+
+  <path d="M250 160 L295 160" class="arrow"/>
+  <rect x="300" y="100" width="260" height="120" stroke="#52856B" class="box"/>
+  <text x="312" y="126" class="h" font-size="16">① 3D 점 샘플링</text>
+  <text x="312" y="150" class="t">불투명 픽셀을 격자 간격으로 ~3만 개</text>
+  <text x="312" y="170" class="t">z = 깊이: 얼굴 중앙값 − d (±0.2 m)</text>
+  <text x="312" y="190" class="t">z = 부조: 머리 타원체(a, b, rz≈0.95a)</text>
+  <text x="312" y="210" class="t">      + 몸통 반원기둥 · 법선 계산</text>
+
+  <path d="M560 160 L605 160" class="arrow"/>
+  <rect x="610" y="100" width="260" height="120" stroke="#BD7538" class="box"/>
+  <text x="622" y="126" class="h" font-size="16">② 측면 융합</text>
+  <text x="622" y="150" class="t">측면 사진: 얼굴 랜드마크 → 코 오프셋</text>
+  <text x="622" y="170" class="t">→ 회전각 θ (코가 오른쪽이면 +)</text>
+  <text x="622" y="190" class="t">법선을 θ 회전 → 측면 가시성 &gt; 정면 가시성</text>
+  <text x="622" y="210" class="t">이면 측면 인물 마스크에서 색 샘플·블렌드</text>
+
+  <path d="M870 160 L915 160" class="arrow"/>
+  <rect x="920" y="100" width="240" height="120" stroke="#8F4D6B" class="box"/>
+  <text x="932" y="126" class="h" font-size="16">③ 스플랫 초기화</text>
+  <text x="932" y="150" class="t">색(RGB) · 불투명도(가장자리 감쇠)</text>
+  <text x="932" y="170" class="t">반지름 = 픽셀 간격 × 0.9</text>
+  <text x="932" y="190" class="t">뒤→앞 z 정렬 (알파 블렌딩용)</text>
+  <text x="932" y="210" class="t">부조 그리드 48×64 (입·눈 오버레이 z)</text>
+
+  <!-- outputs -->
+  <path d="M1040 220 L1040 265" class="arrow"/>
+  <rect x="700" y="270" width="460" height="130" stroke="#52856B" class="box"/>
+  <text x="712" y="296" class="h" font-size="16">SplatMesh · RealityKit 렌더</text>
+  <text x="712" y="320" class="t">스플랫마다 쿼드 1개(정점 4, 삼각형 2) → MeshDescriptor (≤36k 스플랫 = 144k 정점)</text>
+  <text x="712" y="340" class="t">색 × 가우시안 알파를 구운 8×8 타일 아틀라스(≤1536²) → UnlitMaterial 알파 블렌딩</text>
+  <text x="712" y="360" class="t">커스텀 셰이더 없이 visionOS/iOS/macOS 공통. 루트는 뷰어 방향 빌보딩.</text>
+  <text x="712" y="385" class="s">입/눈꺼풀 오버레이는 부조 z + 6mm 에 놓여 입체 표면 위에 뜬다.</text>
+
+  <rect x="40" y="270" width="620" height="130" stroke="#334C85" class="box"/>
+  <text x="52" y="296" class="h" font-size="16">저장 · 전송 · 내보내기</text>
+  <text x="52" y="320" class="t">splats.bin — 매직 "SBSP" v1 · 카드 크기 · 부조 그리드 · 스플랫당 20바이트 (3만 개 ≈ 600 KB)</text>
+  <text x="52" y="340" class="t">전송: persona-/depth-/side-/splats- 리소스 + personaTransferComplete(목록) → Vision Pro 가 조립</text>
+  <text x="52" y="360" class="t">사진만 받으면 Vision Pro 가 같은 SplatBuilder 로 직접 만들어 초안으로 띄운다</text>
+  <text x="52" y="385" class="t">3DGS PLY 내보내기 — x y z nx ny nz f_dc_0..2 opacity scale_0..2 rot_0..3 (SuperSplat 등에서 열림)</text>
+
+  <!-- mouth -->
+  <rect x="40" y="430" width="1120" height="140" stroke="#C7A95C" class="box"/>
+  <text x="52" y="456" class="h" font-size="16">입 모양 신호 우선순위 (MouthSourceKind)</text>
+  <g class="t">
+    <text x="52" y="482">Vision Pro</text><text x="200" y="482">내부 카메라/LiDAR 접근 불가(시스템 전용) → <tspan font-weight="700">마이크 음량</tspan> (VoiceEngine RMS, 권한 상태·허용 버튼·레벨미터 표시)</text>
+    <text x="52" y="506">iPhone · iPad</text><text x="200" y="506"><tspan font-weight="700">ARKit 얼굴 추적 jawOpen</tspan>(TrueDepth) → 카메라 입술 랜드마크 → 마이크</text>
+    <text x="52" y="530">Mac</text><text x="200" y="530"><tspan font-weight="700">카메라 입술 랜드마크</tspan>(innerLips 높이 / 얼굴 높이) → 마이크</text>
+  </g>
+  <text x="52" y="556" class="s">모임에서는 항상 마이크 RMS 가 입 벌림이 되어 15Hz 포즈로 전송된다. 미리보기(스튜디오/캡처)는 위 우선순위를 따른다.</text>
+</svg>

@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="560" viewBox="0 0 1200 560" font-family="-apple-system, 'Apple SD Gothic Neo', Helvetica, Arial, sans-serif">
+  <defs>
+    <style>
+      .t { font-size: 14px; fill: #2b2420; }
+      .h { font-size: 18px; font-weight: 700; fill: #2b2420; }
+      .s { font-size: 12px; fill: #6b5f58; }
+      .box { rx: 14; ry: 14; stroke-width: 1.5; fill: #fff; }
+      .arrow { stroke: #8a7a70; stroke-width: 2; fill: none; marker-end: url(#m); }
+    </style>
+    <marker id="m" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#8a7a70"/></marker>
+  </defs>
+  <rect width="1200" height="560" fill="#faf6ef"/>
+  <text x="40" y="44" class="h" font-size="26">라이브 포즈 루프 · 30Hz 틱 (GatheringSession.tick)</text>
+  <text x="40" y="68" class="s">내 몸 → PersonaPose(약 60 바이트) → 네트워크 → 상대 기기의 PersonaAvatar. 음성은 별도 60ms PCM 청크.</text>
+
+  <!-- Sources -->
+  <rect x="40" y="110" width="250" height="90" stroke="#52856B" class="box"/>
+  <text x="52" y="136" class="h" font-size="16">WorldTrackingProvider</text>
+  <text x="52" y="158" class="t">queryDeviceAnchor(now)</text>
+  <text x="52" y="178" class="s">4×4 → yaw·pitch·roll, 위치 − 기준점</text>
+
+  <rect x="40" y="215" width="250" height="90" stroke="#52856B" class="box"/>
+  <text x="52" y="241" class="h" font-size="16">HandTrackingProvider</text>
+  <text x="52" y="263" class="t">anchorUpdates → wrist 조인트</text>
+  <text x="52" y="283" class="s">머리 역변환 → 머리 기준 상대 좌표</text>
+
+  <rect x="40" y="320" width="250" height="90" stroke="#52856B" class="box"/>
+  <text x="52" y="346" class="h" font-size="16">마이크 탭</text>
+  <text x="52" y="368" class="t">RMS → level 0…1 (감쇠 0.6)</text>
+  <text x="52" y="388" class="s">16kHz Int16 60ms 청크 큐</text>
+
+  <!-- Pose -->
+  <path d="M290 155 L345 230" class="arrow"/><path d="M290 260 L345 260" class="arrow"/><path d="M290 365 L345 290" class="arrow"/>
+  <rect x="350" y="180" width="260" height="170" stroke="#334C85" class="box"/>
+  <text x="362" y="206" class="h" font-size="16">PersonaPose</text>
+  <g font-family="Menlo, monospace" font-size="12" fill="#2b2420">
+    <text x="362" y="228">yaw pitch roll : Float (rad)</text>
+    <text x="362" y="246">offset        : SIMD3 (m)</text>
+    <text x="362" y="264">mouth         : 0…1</text>
+    <text x="362" y="282">speaking      : Bool</text>
+    <text x="362" y="300">leftHand/rightHand : SIMD3?</text>
+    <text x="362" y="318">handRaised    : Bool (손목 y &gt; +8cm)</text>
+  </g>
+  <text x="362" y="340" class="s">정면 캘리브레이션: 첫 머리 자세 또는 "정면 다시 맞추기"</text>
+
+  <!-- Network -->
+  <path d="M610 265 L665 265" class="arrow"/>
+  <rect x="670" y="215" width="190" height="100" stroke="#8F4D6B" class="box"/>
+  <text x="682" y="241" class="h" font-size="16">전송</text>
+  <text x="682" y="263" class="t">pose: unreliable 15Hz</text>
+  <text x="682" y="283" class="t">voice: unreliable 60ms</text>
+  <text x="682" y="303" class="s">binary plist 인코딩</text>
+
+  <!-- Avatar -->
+  <path d="M860 265 L915 265" class="arrow"/>
+  <rect x="920" y="110" width="240" height="300" stroke="#BD7538" class="box"/>
+  <text x="932" y="136" class="h" font-size="16">PersonaAvatar.update</text>
+  <g class="t">
+    <text x="932" y="162">· blended(toward:, dt×10) 스무딩</text>
+    <text x="932" y="184">· card.orientation = yaw×0.75 · pitch×0.6 · roll×0.5</text>
+    <text x="932" y="206">· card.position = 피벗 + offset(±25cm)</text>
+    <text x="932" y="228">· 호흡 scale.y 1±0.012 · 흔들림</text>
+    <text x="932" y="250">· 입 = max(pose.mouth, 수신 음성 RMS)</text>
+    <text x="932" y="272">· 깜빡임 타이머 2.2–5.5s</text>
+    <text x="932" y="294">· 손 = 피벗 + (x, y, −z×0.6)</text>
+    <text x="932" y="316">· 글로우 opacity 0.25 + 0.6×level</text>
+    <text x="932" y="338">· 이름표 speaking 점 · ✋ · 반응 2.4s</text>
+  </g>
+  <text x="932" y="372" class="s">3초간 포즈가 없으면 rest 로 돌아간다.</text>
+  <text x="932" y="392" class="s">루트는 매 틱 뷰어 방향으로 yaw 빌보딩.</text>
+
+  <!-- Demo bots -->
+  <rect x="350" y="400" width="510" height="120" stroke="#C7A95C" class="box"/>
+  <text x="362" y="426" class="h" font-size="16">데모 손님 (BotBrain) — 네트워크 없이 같은 루프를 탄다</text>
+  <text x="362" y="450" class="t">· 세션이 2.5–6.5초씩 말할 차례를 넘김 → 음절 엔벨로프 max(0, sin 11t)·(0.55+0.45 sin 2.3t)</text>
+  <text x="362" y="472" class="t">· 듣는 중엔 느린 고갯짓(에너지 0.45), 말할 땐 활발(1.0)</text>
+  <text x="362" y="494" class="t">· 9–22초마다 반응 이모지, 절반 확률로 2.2초 손들기</text>
+  <text x="362" y="512" class="s">스튜디오 미리보기도 같은 PersonaAvatar 를 0.42배로 그린다 (마이크 또는 말하기 시뮬레이션).</text>
+</svg>
