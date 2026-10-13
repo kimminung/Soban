@@ -15,6 +15,10 @@
 
 ## 데모 영상
 
+
+https://github.com/user-attachments/assets/111bc257-3080-4b8e-b78c-723b44d68862
+
+
 | [![소반앱 - 좌식테이블에 둘러앉아 소통 (Demo)](https://img.youtube.com/vi/YkVojNS1Je8/hqdefault.jpg)](https://youtu.be/YkVojNS1Je8) | [![소반앱 - 좌식테이블에 둘러앉아 소통 (Demo) 2](https://img.youtube.com/vi/M_rHSixSkKw/hqdefault.jpg)](https://youtu.be/M_rHSixSkKw) | [![소반앱 - 좌식테이블에 둘러앉아 소통 (Demo) 3](https://img.youtube.com/vi/BjRCnjIqMcg/hqdefault.jpg)](https://youtu.be/BjRCnjIqMcg) |
 |---|---|---|
 | [Demo 1 — 좌식테이블에 둘러앉아 소통](https://youtu.be/YkVojNS1Je8) | [Demo 2](https://youtu.be/M_rHSixSkKw) | [Demo 3](https://youtu.be/BjRCnjIqMcg) |
