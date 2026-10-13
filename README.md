@@ -6,6 +6,13 @@
 
 **소반**은 작은 좌식 상을 뜻합니다. 이 앱은 사진 한 장으로 투명 배경의 2.5D 페르소나를 만들고, Vision Pro 의 머리 자세·손 위치·목소리로 그 페르소나를 살아 움직이게 한 뒤, 같은 Wi‑Fi 의 Vision Pro 들과 두레반 여섯 자리에 둘러앉게 합니다. 모든 처리는 기기 안에서 끝나고 서버는 없습니다.
 
+## 소개 영상
+
+[![소반 소개 영상 — 멀리 있어도, 한 상에](Docs/video/soban-intro-poster.jpg)](Docs/video/soban-intro.mp4)
+
+1080p · 53초 · 배경음 포함. 이미지를 누르면 영상 파일(`Docs/video/soban-intro.mp4`)로 이동합니다.
+소반 → [초상](https://github.com/kimminung/Chosang) → [코르소나](https://github.com/kimminung/coursona)로 이어지는 변화 과정은 코르소나 리포의 [「얼굴이 되기까지」](https://github.com/kimminung/coursona/blob/main/Docs/video/evolution.mp4) 영상에 담았습니다.
+
 ## 데모 영상
 
 | [![소반앱 - 좌식테이블에 둘러앉아 소통 (Demo)](https://img.youtube.com/vi/YkVojNS1Je8/hqdefault.jpg)](https://youtu.be/YkVojNS1Je8) | [![소반앱 - 좌식테이블에 둘러앉아 소통 (Demo) 2](https://img.youtube.com/vi/M_rHSixSkKw/hqdefault.jpg)](https://youtu.be/M_rHSixSkKw) | [![소반앱 - 좌식테이블에 둘러앉아 소통 (Demo) 3](https://img.youtube.com/vi/BjRCnjIqMcg/hqdefault.jpg)](https://youtu.be/BjRCnjIqMcg) |
